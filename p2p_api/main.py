@@ -9,9 +9,11 @@ from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
-from . import crud, schemas
+from . import crud, schemas, database
+from .database import Offer, PaymentMethod
 from .binance_scraper import get_binance_offers, get_binance_pairs
-from .database import Base, init_db, DATABASE_URL
+from .database import init_db, DATABASE_URL
+from . import database
 
 load_dotenv()
 
@@ -29,9 +31,11 @@ SessionLocal = None
 async def lifespan(app: FastAPI):
     global engine, SessionLocal
     # Initialize the database engine and session factory
-    _engine, _SessionLocal = init_db(DATABASE_URL)
-    if os.getenv("TESTING") != "1":
-        Base.metadata.create_all(bind=_engine)
+    db_url_for_lifespan = os.getenv("DATABASE_URL")
+    print(f"Lifespan: DATABASE_URL is {db_url_for_lifespan}")
+    _engine, _SessionLocal = init_db(db_url_for_lifespan)
+    print("Lifespan: Calling database.Base.metadata.create_all")
+    database.Base.metadata.create_all(bind=_engine)
     yield
 
 
