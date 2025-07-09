@@ -1,55 +1,99 @@
-import os
+import logging
 import secrets
 import uuid
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Literal
 
-from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
-from . import crud, schemas
+from . import (
+    crud,
+    schemas,
+)
 from .binance_scraper import get_binance_offers, get_binance_pairs
+from .config import Settings
 from .database import init_db
-from . import database # Keep this import for database.Base
+from .exceptions import ScraperError
+from .logging_config import setup_logging
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
-API_KEY = os.getenv("API_KEY")
 api_key_header = APIKeyHeader(name="X-API-Key")
 
 _engine = None
 _SessionLocal = None
 
-def configure_database(db_url: str):
+def configure_database(db_url: str, engine_override=None, session_override=None):
     global _engine, _SessionLocal
-    _engine, _SessionLocal = init_db(db_url)
-    database.Base.metadata.create_all(bind=_engine)
+    if engine_override and session_override:
+        _engine = engine_override
+        _SessionLocal = session_override
+    else:
+        _engine, _SessionLocal = init_db(db_url)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _engine, _SessionLocal
-    if os.getenv("TESTING") != "1":
-        db_url_for_lifespan = os.getenv("DATABASE_URL")
-        configure_database(db_url_for_lifespan)
+    setup_logging()
+    logger.info("Starting P2P Dashboard API...")
+    global global_settings
+    global_settings = Settings()
+    if not global_settings.testing:
+        configure_database(global_settings.database_url)
     yield
 
-    # Cleanup on shutdown
-    if os.getenv("TESTING") != "1" and _engine:
+    logger.info("Shutting down P2P Dashboard API...")
+    global _engine
+    if not global_settings.testing and _engine:
         _engine.dispose()
+
+tags_metadata = [
+    {
+        "name": "Binance",
+        "description": "Endpoints for fetching P2P data from Binance.",
+    },
+    {
+        "name": "Bybit",
+        "description": "Endpoints for fetching P2P data from Bybit.",
+    },
+    {
+        "name": "System",
+        "description": "System health and status endpoints.",
+    },
+]
 
 app = FastAPI(
     title="P2P Dashboard API",
-    description="An API for scraping P2P trading data from cryptocurrency exchanges.",
+    description="A unified, high-performance API for fetching P2P cryptocurrency trading data from major exchanges.",
     version="1.0.0",
     lifespan=lifespan,
+    openapi_tags=tags_metadata,
+    contact={
+        "name": "P2P Dashboard Support",
+        "url": "https://github.com/your-username/P2P-Dashboard",
+        "email": "support@example.com",
+    },
+    license_info={"name": "MIT License"},
 )
 
+@app.exception_handler(ScraperError)
+async def scraper_exception_handler(request: Request, exc: ScraperError):
+    logger.error(f"Scraper error for request {request.url}: {exc.message}")
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "detail": "Could not fetch data from the external source. Please try again later."
+        },
+    )
+
+
 async def get_api_key(api_key: str = Depends(api_key_header)):
-    if not api_key or not secrets.compare_digest(api_key, API_KEY):
+    if not secrets.compare_digest(api_key, global_settings.api_key):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing API Key"
         )
 
 # Dependency to get DB session
@@ -65,7 +109,7 @@ def get_db(db: Session = Depends(lambda: None)):
     finally:
         db.close()
 
-@app.get("/", tags=["Root"])
+@app.get("/", tags=["System"])
 async def read_root():
     return {"message": "P2P Dashboard API is running!"}
 
@@ -73,68 +117,68 @@ async def read_root():
     "/api/v1/binance/offers",
     response_model=List[schemas.Offer],
     dependencies=[Depends(get_api_key)],
+    summary="Fetch Binance P2P Offers",
+    description="Retrieves a list of active P2P offers from Binance, with robust filtering and pagination.",
     tags=["Binance"],
 )
 async def get_binance_p2p_offers(
-    fiat: str = Query("VES", description="Fiat currency (e.g., VES, USD)"),
-    asset: str = Query("USDT", description="Crypto asset (e.g., USDT, BTC)"),
-    tradeType: str = Query("BUY", description="Trade type (BUY or SELL)"),
-    page: int = Query(1, description="Page number"),
-    rows: int = Query(20, description="Number of rows per page"),
+    fiat: str = Query("VES", description="Fiat currency code (e.g., VES, USD, EUR).", examples=["USD"]),
+    asset: str = Query("USDT", description="Crypto asset code (e.g., USDT, BTC, ETH).", examples=["BTC"]),
+    trade_type: Literal["BUY", "SELL"] = Query(
+        "BUY", description="The type of trade, either BUY or SELL."
+    ),
+    page: int = Query(1, ge=1, description="Page number for pagination, starting from 1."),
+    rows: int = Query(20, ge=1, le=100, description="Number of results per page (1-100)."),
     db: Session = Depends(get_db),
 ):
     try:
         offers_data = get_binance_offers(
-            fiat=fiat, asset=asset, tradeType=tradeType, page=page, rows=rows
+            fiat=fiat, asset=asset, tradeType=trade_type, page=page, rows=rows
         )
-
-        db_offers = []
-        for offer_data in offers_data:
-            try:
-                price_parts = offer_data["price"].split(" ")
-                if len(price_parts) < 1:
-                    raise ValueError("Invalid price format")
-                price_value = float(price_parts[0].replace(",", ""))
-
-                available_parts = offer_data["available"].split(" ")
-                if len(available_parts) < 1:
-                    raise ValueError("Invalid available format")
-                available_value = float(available_parts[0].replace(",", ""))
-
-                limits_str = offer_data["limits"].replace(",", "")
-                if " - " not in limits_str:
-                    raise ValueError("Invalid limits format")
-
-                min_limit_str, max_limit_str = limits_str.split(" - ")
-                min_limit_value = float(min_limit_str.split(" ")[0])
-                max_limit_value = float(max_limit_str.split(" ")[0])
-
-                offer_to_create = schemas.OfferCreate(
-                    id=str(uuid.uuid4()),
-                    fiat=fiat,
-                    price=price_value,
-                    available=available_value,
-                    min_limit=min_limit_value,
-                    max_limit=max_limit_value,
-                    payment_methods=offer_data["payment_methods"],
-                    trade_type=tradeType,
-                    advertiser=offer_data["advertiser"],
-                    asset=asset,
-                )
-                db_offer = crud.create_offer(db, offer=offer_to_create)
-                db_offers.append(db_offer)
-
-            except (ValueError, IndexError, KeyError) as e:
-                print(f"Error parsing offer data: {e}. Data: {offer_data}")
-                continue
-
-        return db_offers
-
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching Binance offers: {str(e)}",
-        )
+        # As per the audit, wrap scraper exceptions.
+        raise ScraperError(f"An unexpected error occurred with the Binance scraper: {str(e)}")
+
+    db_offers = []
+    for offer_data in offers_data:
+        try:
+            price_str = offer_data.get("price", "")
+            price_value = float(price_str.split(" ")[0].replace(",", ""))
+
+            available_str = offer_data.get("available", "")
+            available_value = float(available_str.split(" ")[0].replace(",", ""))
+
+            limits_str = offer_data.get("limits", "").replace(",", "")
+            if " - " not in limits_str:
+                raise ValueError("Limits format is missing ' - ' separator")
+
+            min_limit_str, max_limit_str = limits_str.split(" - ")
+            min_limit_value = float(min_limit_str.split(" ")[0])
+            max_limit_value = float(max_limit_str.split(" ")[0])
+
+            offer_to_create = schemas.OfferCreate(
+                id=str(uuid.uuid4()),
+                fiat=fiat,
+                price=price_value,
+                available=available_value,
+                min_limit=min_limit_value,
+                max_limit=max_limit_value,
+                payment_methods=offer_data.get("payment_methods", []),
+                trade_type=trade_type,
+                advertiser=offer_data.get("advertiser"),
+                asset=asset,
+            )
+            db_offer = crud.create_offer(db, offer=offer_to_create)
+            db_offers.append(db_offer)
+
+        except (ValueError, IndexError, KeyError, AttributeError) as e:
+            # Use structured logging instead of print
+            logger.warning(
+                f"Skipping offer due to parsing error: {e}", extra={"offer_data": offer_data}
+            )
+            continue
+
+    return db_offers
 
 @app.get(
     "/api/v1/binance/pairs",
