@@ -1,71 +1,147 @@
-## Setting Up and Verifying the Virtual Environment
+# P2P Dashboard API
 
-Before running the application or tests, it's crucial to set up and activate the virtual environment correctly to ensure all dependencies are installed and accessible.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-1.  **Create a Virtual Environment:**
+A powerful and flexible API for scraping P2P trading data from cryptocurrency exchanges.
 
-    If you haven't already, create a virtual environment in your project directory:
+## Table of Contents
 
-    
-```
-bash
-    python -m venv .venv
-    
-```
-2.  **Activate the Virtual Environment:**
+- [Features](#features)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+- [Usage](#usage)
+- [API Endpoints](#api-endpoints)
+  - [Get Binance Offers](#get-binance-offers)
+  - [Get Binance Pairs](#get-binance-pairs)
+  - [Get Bybit Offers](#get-bybit-offers)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
 
-    *   **On Windows:**
+## Features
 
-        
-```
-bash
-        .venv\Scripts\activate
-        
-```
-*   **On macOS and Linux:**
-```
-bash
-        source .venv/bin/activate
-        
-```
-You should see `(.venv)` at the beginning of your terminal prompt, indicating that the virtual environment is active.
+- **Real-time Data:** Scrape P2P trading data from Binance and other exchanges in real-time.
+- **Flexible Queries:** Filter offers by fiat currency, crypto asset, trade type, and more.
+- **Extensible:** Easily add new exchanges and trading pairs.
+- **Secure:** Protect your API with API key authentication.
 
-3.  **Install Dependencies:**
+## Getting Started
 
-    With the virtual environment activated, install the required packages using the `requirements.txt` file:
-```
-bash
-    pip install -r requirements.txt
-    
-```
-4.  **Verify Dependencies:**
+Follow these instructions to get a copy of the project up and running on your local machine for development and testing purposes.
 
-    To check for any broken dependencies or conflicts after installation, run:
+### Prerequisites
 
-    
-```
-bash
-    pip check
-    
-```
-This command will report if there are any issues with your installed packages.
+- Python 3.9+
+- PostgreSQL
 
-5.  **Check Environment Variables (if applicable):**
+### Installation
 
-    If your application relies on environment variables (like `DATABASE_URL`), it's good practice to verify they are set correctly within your activated environment. You can do this using:
+1. **Clone the repository:**
 
-    *   **On Windows:**
-```
-bash
-        echo %YOUR_VARIABLE_NAME%
-        
-```
-*   **On macOS and Linux:**
-```
-bash
-        echo $YOUR_VARIABLE_NAME
-        
-```
-Replace `YOUR_VARIABLE_NAME` with the actual name of the environment variable you need to check.
+   ```bash
+   git clone https://github.com/your-username/P2P-Dashboard.git
+   cd P2P-Dashboard
+   ```
 
-By following these steps, you can ensure your development environment is properly configured, minimizing potential issues related to missing dependencies or incorrect setups.
+2. **Create and activate a virtual environment:**
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate # On Windows, use `.venv\Scripts\activate`
+   ```
+
+3. **Install the dependencies:**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Set up the database:**
+
+   - Create a PostgreSQL database.
+   - Copy the `.env.example` file to `.env` and update the `DATABASE_URL` with your database connection string.
+
+5. **Generate an API key:**
+
+   - Run the following command to generate a secure API key:
+
+     ```bash
+     python -c "import secrets; print(secrets.token_hex(32))"
+     ```
+
+   - Add the generated key to your `.env` file as `API_KEY`.
+
+## Usage
+
+To run the application, use the following command:
+
+```bash
+uvicorn p2p_api.main:app --reload
+```
+
+The API will be available at `http://127.0.0.1:8000`.
+
+## API Endpoints
+
+### Get Binance Offers
+
+- **Endpoint:** `/api/v1/binance/offers`
+- **Method:** `GET`
+- **Description:** Get a list of P2P offers from Binance.
+- **Query Parameters:**
+  - `fiat` (string, required): Fiat currency (e.g., `VES`, `USD`).
+  - `asset` (string, required): Crypto asset (e.g., `USDT`, `BTC`).
+  - `tradeType` (string, required): Trade type (`BUY` or `SELL`).
+  - `page` (integer, optional): Page number (default: `1`).
+  - `rows` (integer, optional): Number of rows per page (default: `20`).
+- **Headers:**
+  - `X-API-Key` (string, required): Your API key.
+- **Example:**
+
+  ```bash
+  curl -X GET "http://127.0.0.1:8000/api/v1/binance/offers?fiat=VES&asset=USDT&tradeType=BUY" -H "X-API-Key: your-api-key"
+  ```
+
+### Get Binance Pairs
+
+- **Endpoint:** `/api/v1/binance/pairs`
+- **Method:** `GET`
+- **Description:** Get a list of available trading pairs from Binance.
+- **Headers:**
+  - `X-API-Key` (string, required): Your API key.
+- **Example:**
+
+  ```bash
+  curl -X GET "http://127.0.0.1:8000/api/v1/binance/pairs" -H "X-API-Key: your-api-key"
+  ```
+
+### Get Bybit Offers
+
+- **Endpoint:** `/api/v1/bybit/offers`
+- **Method:** `GET`
+- **Description:** Get a list of P2P offers from Bybit.
+- **Note:** This endpoint is not yet implemented.
+
+## Testing
+
+To run the tests, use the following command:
+
+```bash
+python -m pytest
+```
+
+## Contributing
+
+Contributions are welcome! Please follow these steps to contribute:
+
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/your-feature`).
+3. Make your changes.
+4. Commit your changes (`git commit -m 'Add some feature'`).
+5. Push to the branch (`git push origin feature/your-feature`).
+6. Open a pull request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
