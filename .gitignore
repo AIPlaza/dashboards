@@ -4,3 +4,4 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 p2p_api/venv/
+.venv/
