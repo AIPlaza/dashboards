@@ -24,15 +24,23 @@ SessionLocal = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global engine, SessionLocal
+
     # Initialize the database engine and session factory
-    db_url_for_lifespan = os.getenv("DATABASE_URL")
+    db_url_for_lifespan = os.getenv("DATABASE_URL", "sqlite:///./test.db")
     print(f"Lifespan: DATABASE_URL is {db_url_for_lifespan}")
-    _engine, _SessionLocal = init_db(db_url_for_lifespan)
+
+    # FIXED: Properly assign to globals
+    engine, SessionLocal = init_db(db_url_for_lifespan)
     print("Lifespan: Calling database.Base.metadata.create_all")
 
-    database.Base.metadata.create_all(bind=_engine)
+    # Create all tables
+    database.Base.metadata.create_all(bind=engine)
+
     yield
 
+    # Cleanup on shutdown
+    if engine:
+        engine.dispose()
 
 app = FastAPI(
     title="P2P Dashboard API",
@@ -52,6 +60,12 @@ async def get_api_key(api_key: str = Depends(api_key_header)):
 
 # Dependency to get DB session
 def get_db():
+    # IMPROVED: More robust dependency with error handling
+    if SessionLocal is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database not initialized"
+        )
     db = SessionLocal()
     try:
         yield db
@@ -78,42 +92,65 @@ async def get_binance_p2p_offers(
     rows: int = Query(20, description="Number of rows per page"),
     db: Session = Depends(get_db),
 ):
-    offers_data = get_binance_offers(
-        fiat=fiat, asset=asset, tradeType=tradeType, page=page, rows=rows
-    )
+    try:
+        offers_data = get_binance_offers(
+            fiat=fiat, asset=asset, tradeType=tradeType, page=page, rows=rows
+        )
 
-    db_offers = []
-    for offer_data in offers_data:
-        try:
-            price_value = float(offer_data["price"].split(" ")[0])
-            available_value = float(offer_data["available"].split(" ")[0])
-            limits_str = offer_data["limits"].replace(",", "")
-            min_limit_str, max_limit_str = limits_str.split(" - ")
-            min_limit_value = float(min_limit_str.split(" ")[0])
-            max_limit_value = float(max_limit_str.split(" ")[0])
+        db_offers = []
+        for offer_data in offers_data:
+            try:
+                # IMPROVED: More robust parsing with validation
+                price_parts = offer_data["price"].split(" ")
+                if len(price_parts) < 1:
+                    raise ValueError("Invalid price format")
+                price_value = float(price_parts[0].replace(",", ""))
 
-            offer_to_create = schemas.OfferCreate(
-                id=str(uuid.uuid4()),
-                fiat=fiat,
-                asset=asset,
-                price=price_value,
-                available=available_value,
-                min_limit=min_limit_value,
-                max_limit=max_limit_value,
-                payment_methods=offer_data["payment_methods"],
-                trade_type=tradeType,
-                advertiser=offer_data["advertiser"],
-            )
-            db_offer = crud.create_offer(db, offer=offer_to_create)
-            db_offers.append(db_offer)
+                available_parts = offer_data["available"].split(" ")
+                if len(available_parts) < 1:
+                    raise ValueError("Invalid available format")
+                available_value = float(available_parts[0].replace(",", ""))
 
-        except (ValueError, IndexError) as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error parsing offer data from Binance: {e}. Data: {offer_data}",
-            )
+                limits_str = offer_data["limits"].replace(",", "")
+                if " - " not in limits_str:
+                    raise ValueError("Invalid limits format")
 
-    return db_offers
+                min_limit_str, max_limit_str = limits_str.split(" - ")
+                min_limit_value = float(min_limit_str.split(" ")[0])
+                max_limit_value = float(max_limit_str.split(" ")[0])
+
+                print(f"price_value: {price_value}")
+                print(f"available_value: {available_value}")
+                print(f"min_limit_value: {min_limit_value}")
+                print(f"max_limit_value: {max_limit_value}")
+                offer_to_create = schemas.OfferCreate(
+                    id=str(uuid.uuid4()),
+                    fiat=fiat,
+                    price=price_value,
+                    available=available_value,
+                    min_limit=min_limit_value,
+                    max_limit=max_limit_value,
+                    payment_methods=offer_data["payment_methods"],
+ trade_type=tradeType,
+ advertiser=offer_data["advertiser"],
+                    asset=asset,
+                )
+                db_offer = crud.create_offer(db, offer=offer_to_create)
+                db_offers.append(db_offer)
+
+            except (ValueError, IndexError, KeyError) as e:
+                # IMPROVED: Log error but continue processing other offers
+                print(f"Error parsing offer data: {e}. Data: {offer_data}")
+                continue
+
+        return db_offers
+
+    except Exception as e:
+        # IMPROVED: Better error handling for external API calls
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching Binance offers: {str(e)}"
+        )
 
 
 @app.get(
