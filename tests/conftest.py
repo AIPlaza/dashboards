@@ -26,7 +26,6 @@ def session_fixture():
     try:
         yield db
     finally:
-        db.close()
         database.Base.metadata.drop_all(bind=engine)  # Drop tables after tests
 
 

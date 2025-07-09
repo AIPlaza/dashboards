@@ -18,12 +18,6 @@ from . import database
 load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
-api_key_header = APIKeyHeader(name="X-API-Key")
-
-
-engine = None
-SessionLocal = None
-
 engine = None
 SessionLocal = None
 
@@ -35,6 +29,7 @@ async def lifespan(app: FastAPI):
     print(f"Lifespan: DATABASE_URL is {db_url_for_lifespan}")
     _engine, _SessionLocal = init_db(db_url_for_lifespan)
     print("Lifespan: Calling database.Base.metadata.create_all")
+
     database.Base.metadata.create_all(bind=_engine)
     yield
 
@@ -47,6 +42,7 @@ app = FastAPI(
 )
 
 
+api_key_header = APIKeyHeader(name="X-API-Key")
 async def get_api_key(api_key: str = Depends(api_key_header)):
     if not api_key or not secrets.compare_digest(api_key, API_KEY):
         raise HTTPException(
