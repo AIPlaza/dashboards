@@ -20,11 +20,11 @@ from typing import Tuple
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+
 
 Base = declarative_base()
 
-def init_db(db_url: str = None):
+def init_db(db_url: str):
     """Initialize database engine and session factory."""
     effective_url = db_url or DATABASE_URL
     
