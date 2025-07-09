@@ -10,9 +10,6 @@ from p2p_api.main import app, get_db
 API_KEY = os.getenv("API_KEY", "test-key")
 
 
-
-
-
 def test_read_root(client):
     response = client.get("/")
     assert response.status_code == 200

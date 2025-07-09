@@ -21,6 +21,23 @@ The primary challenge throughout this task was a persistent `sqlite3.Operational
 
 ## Possible Solutions and Future Strategies
 
+## Current Status and Persistent Issues
+
+Despite the efforts to resolve the environment and database initialization issues, one test continues to fail: `tests/test_main.py::test_get_binance_offers_success`. The specific error message is consistently `sqlite3.OperationalError: no such table: payment_methods`.
+
+Steps taken to address the issues include:
+
+-   Creating and activating a Python virtual environment (`python -m venv .venv`, `source .venv/bin/activate`).
+-   Installing all dependencies, including the previously missing `psycopg2-binary`, using `pip install -r requirements.txt`.
+-   Adding instructions for environment setup to `README.md`.
+-   Refactoring database initialization logic in `p2p_api/main.py` to accept an optional database URL and rely on the FastAPI lifespan event for `create_all`.
+-   Modifying the `client_fixture` and `session_fixture` in `tests/conftest.py` to manage the in-memory SQLite database URL and table creation/dropping for each test.
+-   Removing a duplicate `client` fixture in `tests/test_main.py`.
+
+The persistence of the `no such table` error suggests that the database tables are still not being correctly created or are not accessible within the context of the `test_get_binance_offers_success` test execution. This is likely due to complex interactions and timing issues between the FastAPI `TestClient`, the application's `lifespan` function, and the pytest fixtures managing the in-memory database. Further in-depth debugging, potentially involving step-through debugging or more detailed logging, is required to pinpoint the exact cause.
+
+## Possible Solutions and Future Strategies
+
 To prevent similar debugging loops and improve efficiency in future tasks, the following strategies are recommended:
 
 1.  **Prioritize Environment Setup and Verification:**
