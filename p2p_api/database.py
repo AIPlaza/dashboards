@@ -1,22 +1,9 @@
 import datetime
-import os
 
 from dotenv import load_dotenv
-from sqlalchemy import (
-    Column,
-    DateTime,
-    Float,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    Table,
- create_engine, event
-)
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Table, create_engine, event
 from sqlalchemy.engine import Engine
-from typing import Tuple
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 load_dotenv()
 
@@ -26,8 +13,9 @@ Base = declarative_base()
 
 def init_db(db_url: str):
     """Initialize database engine and session factory."""
-    effective_url = db_url or DATABASE_URL
-    
+    from p2p_api.config import Settings
+    effective_url = db_url or Settings().database_url
+
     # Configure engine based on database type
     if "sqlite" in effective_url:
         engine = create_engine(
@@ -48,14 +36,14 @@ def init_db(db_url: str):
             pool_recycle=300,
             echo=False,
         )
-    
+
     SessionLocal = sessionmaker(
-        autocommit=False, 
-        autoflush=False, 
+        autocommit=False,
+        autoflush=False,
         bind=engine,
         expire_on_commit=False,  # Prevent issues with accessing objects after commit
     )
-    
+
     return engine, SessionLocal
 
 

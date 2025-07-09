@@ -104,7 +104,7 @@ def get_binance_offers(
                         ],
                     }
                     all_offers.append(offer_details)
-                
+
                 current_page += 1
                 pages_fetched += 1
             else:
@@ -126,7 +126,7 @@ def get_binance_offers(
         except json.JSONDecodeError:
             logging.error("Failed to decode Binance response as JSON.")
             break
-    
+
     if pages_fetched >= MAX_PAGES:
         logging.warning(f"Reached max pages ({MAX_PAGES}) for this request.")
 
