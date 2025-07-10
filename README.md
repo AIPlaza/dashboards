@@ -51,15 +51,24 @@ Follow these instructions to get a copy of the project up and running on your lo
    source .venv/bin/activate # On Windows, use `.venv\Scripts\activate`
    ```
 
-3. **Install the dependencies:**
+3. **Install Dependencies:**
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+   - **For Development & Testing (SQLite):**
+     If you want to run tests or develop against the test suite (which uses a simpler in-memory SQLite database), you don't need PostgreSQL. Install the development dependencies:
+     ```bash
+     pip install -r requirements-dev.txt
+     ```
 
-4. **Set up the database:**
+   - **For Production-like Setup (PostgreSQL):**
+     To run the application against a PostgreSQL database as intended for production, you will need `psycopg2-binary`. First, ensure you have the necessary system-level build tools and PostgreSQL development headers installed. Then, install all dependencies:
+     ```bash
+     pip install -r requirements-dev.txt
+     ```
+     *(Note: `requirements-dev.txt` includes the production dependencies from `requirements.txt`)*
 
-   - Create a PostgreSQL database.
+4. **Set up PostgreSQL Database (for production-like setup only):**
+
+   - Ensure you have a running PostgreSQL server and create a database.
    - Copy the `.env.example` file to `.env` and update the `DATABASE_URL` with your database connection string.
 
 5. **Generate an API key:**
@@ -72,6 +81,22 @@ Follow these instructions to get a copy of the project up and running on your lo
 
    - Add the generated key to your `.env` file as `API_KEY`.
 
+6. **Troubleshooting Installation (Windows):**
+
+   The `psycopg2-binary` package is required for PostgreSQL support. Sometimes, its installation can fail on Windows if `pip` cannot find a pre-compiled binary for your system. If you see an error related to `Microsoft Visual C++` or `pg_config`, try the following solutions in order:
+
+   - **Solution 1 (Update Pip):** Ensure you have the latest version of pip, which can help it find the correct package version.
+     ```bash
+     python -m pip install --upgrade pip
+     pip install -r requirements.txt
+     ```
+
+   - **Solution 2 (Install Build Tools):** If updating pip doesn't work, you will need to install the necessary build tools.
+     1. Download and install the Visual Studio Build Tools. During installation, select the **"C++ build tools"** workload.
+     2. Download and install PostgreSQL for Windows.
+     3. After installation, try installing the project dependencies again.
+
+
 ## Usage
 
 To run the application, use the following command:
@@ -82,7 +107,9 @@ uvicorn p2p_api.main:app --reload
 
 The API will be available at `http://127.0.0.1:8000`.
 
-## API Endpoints
+You can view the auto-generated interactive API documentation at `http://127.0.0.1:8000/docs`.
+
+## API Endpoints (Manual Examples)
 
 ### Get Binance Offers
 
@@ -92,7 +119,7 @@ The API will be available at `http://127.0.0.1:8000`.
 - **Query Parameters:**
   - `fiat` (string, required): Fiat currency (e.g., `VES`, `USD`).
   - `asset` (string, required): Crypto asset (e.g., `USDT`, `BTC`).
-  - `tradeType` (string, required): Trade type (`BUY` or `SELL`).
+  - `trade_type` (string, required): Trade type (`BUY` or `SELL`).
   - `page` (integer, optional): Page number (default: `1`).
   - `rows` (integer, optional): Number of rows per page (default: `20`).
 - **Headers:**
@@ -100,7 +127,7 @@ The API will be available at `http://127.0.0.1:8000`.
 - **Example:**
 
   ```bash
-  curl -X GET "http://127.0.0.1:8000/api/v1/binance/offers?fiat=VES&asset=USDT&tradeType=BUY" -H "X-API-Key: your-api-key"
+  curl -X GET "http://127.0.0.1:8000/api/v1/binance/offers?fiat=VES&asset=USDT&trade_type=BUY" -H "X-API-Key: your-api-key"
   ```
 
 ### Get Binance Pairs
