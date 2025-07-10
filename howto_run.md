@@ -29,6 +29,7 @@ First, we need to get the server running. This server is the "brain" of your app
     ```bash
     pip install -r requirements-dev.txt
     ```
+    > **Note:** We use `requirements-dev.txt` for local development because it includes all packages needed to run the application, plus extra tools for testing.
 
 ### Step 2: Configure the Backend
 
@@ -43,6 +44,18 @@ First, we need to get the server running. This server is the "brain" of your app
     ACCESS_TOKEN_EXPIRE_MINUTES=30
     ```
     > **Note:** You can change the `SECRET_KEY` to any random string for better security.
+    The easiest way to generate a strong, random key is to use Python's built-in secrets module.
+
+Open your terminal (it doesn't matter which one or if a virtual environment is active).
+
+Run the following command to generate a cryptographically secure 64-character hexadecimal string:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+This will output a long random string, something like this: c8b9a2f1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2
+```
+
+This is your secret key.
 
 ### Step 3: Run the Backend Server
 

@@ -6,8 +6,5 @@ requests
 pydantic-settings
 passlib[bcrypt]
 python-jose[cryptography]
-streamlit
-pandas
-plotly
 beautifulsoup4
 playwright
