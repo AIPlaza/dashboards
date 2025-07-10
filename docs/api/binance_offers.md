@@ -18,14 +18,14 @@ Fetches P2P offers from Binance based on specified criteria.
 |---|---|---|---|---|
 | `fiat` | string | Yes | `VES` | The fiat currency (e.g., `VES`, `USD`, `EUR`). |
 | `asset` | string | Yes | `USDT` | The crypto asset (e.g., `USDT`, `BTC`, `ETH`). |
-| `tradeType` | string | Yes | `BUY` | The trade type (`BUY` or `SELL`). |
+| `trade_type` | string | Yes | `BUY` | The trade type (`BUY` or `SELL`). Case-sensitive. |
 | `page` | integer | Yes | `1` | The page number for results. |
 | `rows` | integer | Yes | `20` | The number of results per page. |
 
 ## Example Usage
 
 ```
-http://127.0.0.1:8000/api/v1/binance/offers?fiat=USD&asset=BTC&tradeType=SELL&page=1&rows=50
+http://127.0.0.1:8000/api/v1/binance/offers?fiat=USD&asset=BTC&trade_type=SELL&page=1&rows=50
 ```
 
 ## Response
