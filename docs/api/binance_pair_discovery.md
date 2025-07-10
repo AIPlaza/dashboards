@@ -32,3 +32,8 @@ http://127.0.0.1:8000/api/v1/binance/pairs
 ```
 
 This endpoint is useful for dynamically populating dropdowns or lists of available trading pairs in a frontend application, ensuring that users only see options for which offers currently exist.
+
+## Considerations
+
+*   **Dynamic Nature:** The list of supported pairs can change frequently based on market demand, regional availability, and Binance's operational decisions. Relying on the dynamic discovery endpoint is crucial for accuracy.
+*   **Trade Type:** A pair might be supported for `BUY` but not `SELL`, or vice-versa. This endpoint will indicate the `tradeType` for which offers exist.
