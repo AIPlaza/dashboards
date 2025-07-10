@@ -145,3 +145,62 @@ Now we'll set up and run the visual dashboard, which will use the API key you ju
 2.  This will automatically open a new tab in your web browser with the P2P Dashboard.
 
 You're all set! You now have both the backend and frontend running locally.
+
+(.venv) PS C:\Users\DELL\P2P-Dashboard> uvicorn p2p_api.main:app --reload
+INFO:     Will watch for changes in these directories: ['C:\\Users\\DELL\\P2P-Dashboard']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [23740] using WatchFiles
+Process SpawnProcess-1:
+Traceback (most recent call last):
+  File "C:\Python313\Lib\multiprocessing\process.py", line 313, in _bootstrap
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Python313\Lib\multiprocessing\process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\DELL\P2P-Dashboard\.venv\Lib\site-packages\uvicorn\_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+    ~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\DELL\P2P-Dashboard\.venv\Lib\site-packages\uvicorn\server.py", line 67, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\DELL\P2P-Dashboard\.venv\Lib\site-packages\uvicorn\server.py", line 71, in serve
+    await self._serve(sockets)
+  File "C:\Users\DELL\P2P-Dashboard\.venv\Lib\site-packages\uvicorn\server.py", line 78, in _serve
+    config.load()
+    ~~~~~~~~~~~^^
+  File "C:\Users\DELL\P2P-Dashboard\.venv\Lib\site-packages\uvicorn\config.py", line 436, in load
+    self.loaded_app = import_from_string(self.app)
+                      ~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\DELL\P2P-Dashboard\.venv\Lib\site-packages\uvicorn\importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "C:\Python313\Lib\importlib\__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 1026, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "C:\Users\DELL\P2P-Dashboard\p2p_api\main.py", line 11, in <module>
+    from . import (
+    ...<4 lines>...
+    )
+  File "C:\Users\DELL\P2P-Dashboard\p2p_api\crud.py", line 4, in <module>
+    from . import auth, database as models, schemas
+  File "C:\Users\DELL\P2P-Dashboard\p2p_api\auth.py", line 12, in <module>
+    from .dependencies import get_db
+  File "C:\Users\DELL\P2P-Dashboard\p2p_api\dependencies.py", line 8
+    def def set_session_local(session_local: sessionmaker):
+        ^^^
+SyntaxError: invalid syntax

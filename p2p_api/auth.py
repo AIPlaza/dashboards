@@ -9,8 +9,8 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from . import crud, schemas
-from .config import Settings
 from .dependencies import get_db
+from .config import Settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/admin/token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import auth, database as models, schemas
+from . import database as models, schemas
 
 
 def get_or_create_payment_method(db: Session, name: str):
@@ -66,8 +66,7 @@ def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
 
 
-def create_user(db: Session, user: schemas.UserCreate):
-    hashed_password = auth.get_password_hash(user.password)
+def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
     db_user = models.User(username=user.username, hashed_password=hashed_password)
     db.add(db_user)
     db.commit()

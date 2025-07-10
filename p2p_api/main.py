@@ -71,7 +71,7 @@ tags_metadata = [
     {
         "name": "Admin",
         "description": "Endpoints for user and API key management.",
-        "externalDocs": {"description": "Admin API Plan", "url": "./apikeys_dev.md"},
+        "externalDocs": {"description": "Admin API Plan", "url": "https://example.com/apikeys_dev.md"},
     },
 ]
 
