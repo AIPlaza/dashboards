@@ -1,7 +1,28 @@
+# Environments
+.env # Local environment variables - DO NOT COMMIT
+.venv/
+venv/
 
-.env
+# IDE / Editor specific
+.vscode/
+.idea/
+
+# Python Caches
 __pycache__/
 .pytest_cache/
 .ruff_cache/
-p2p_api/venv/
-.venv/
+*.py[cod]
+*$py.class
+
+# SQLite databases
+*.db
+*.sqlite3
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Log files
+*.log
+logs/
