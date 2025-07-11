@@ -1,8 +1,15 @@
 from typing import Generator
+from functools import lru_cache
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from .config import Settings
+
 _SessionLocal: sessionmaker | None = None
+
+@lru_cache()
+def get_settings():
+    return Settings()
 
 
 def set_session_local(session_local: sessionmaker):

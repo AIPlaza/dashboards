@@ -17,8 +17,6 @@ __pycache__/
 # SQLite databases
 *.db
 *.sqlite3
-<<<<<<< HEAD
-=======
 
 # Build artifacts
 build/
@@ -28,4 +26,3 @@ dist/
 # Log files
 *.log
 logs/
->>>>>>> main

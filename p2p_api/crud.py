@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import database as models, schemas
+from . import auth, database as models, schemas
 
 
 def get_or_create_payment_method(db: Session, name: str):
@@ -83,19 +83,20 @@ def get_user_api_keys(db: Session, user_id: int):
     return db.query(models.APIKey).filter(models.APIKey.user_id == user_id).all()
 
 
-def create_api_key(db: Session, key: schemas.APIKeyCreate, user_id: int):
-    key_data = auth.generate_api_key()
+def create_api_key(
+    db: Session, key: schemas.APIKeyCreate, user_id: int, prefix: str, hashed_key: str
+) -> models.APIKey:
+    """Creates and stores an API key record in the database."""
     db_key = models.APIKey(
-        prefix=key_data["prefix"],
-        hashed_key=key_data["hashed_key"],
+        prefix=prefix,
+        hashed_key=hashed_key,
         name=key.name,
         user_id=user_id,
     )
     db.add(db_key)
     db.commit()
     db.refresh(db_key)
-    # Return the full key for the user to copy. It won't be stored.
-    return {"key": key_data["full_key"], "db_key": db_key}
+    return db_key
 
 
 def deactivate_api_key(db: Session, prefix: str, user_id: int):

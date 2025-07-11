@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from .. import auth, crud, database as models, schemas
 from ..config import Settings
-from ..dependencies import get_db
+from ..dependencies import get_db, get_settings
 
 router = APIRouter(
     prefix="/admin",
@@ -18,7 +18,9 @@ router = APIRouter(
 
 @router.post("/token", response_model=schemas.Token, tags=["Admin Authentication"])
 async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
 ):
     """Login an admin user to get a JWT access token."""
     user = crud.get_user_by_username(db, username=form_data.username)
@@ -28,7 +30,6 @@ async def login_for_access_token(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    settings = Settings()
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = auth.create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
@@ -72,8 +73,16 @@ async def create_new_api_key(
     db: Session = Depends(get_db),
 ):
     """Generate a new API key for the authenticated user."""
-    result = crud.create_api_key(db=db, key=key_in, user_id=current_user.id)
-    return schemas.APIKeyCreateResponse(name=result["db_key"].name, key=result["key"])
+    # Generate key data in the router, not in the CRUD layer
+    key_data = auth.generate_api_key()
+    db_key = crud.create_api_key(
+        db=db,
+        key=key_in,
+        user_id=current_user.id,
+        prefix=key_data["prefix"],
+        hashed_key=key_data["hashed_key"],
+    )
+    return schemas.APIKeyCreateResponse(name=db_key.name, key=key_data["full_key"])
 
 
 @router.get(
