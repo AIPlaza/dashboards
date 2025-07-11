@@ -53,18 +53,17 @@ Follow these instructions to get a copy of the project up and running on your lo
 
 3. **Install Dependencies:**
 
-   - **For Development & Testing (SQLite):**
-     If you want to run tests or develop against the test suite (which uses a simpler in-memory SQLite database), you don't need PostgreSQL. Install the development dependencies:
+   - **For Production:**
+     Install only the packages required to run the application:
      ```bash
-     pip install -r requirements-dev.txt
+     pip install -r requirements.txt
      ```
 
-   - **For Production-like Setup (PostgreSQL):**
-     To run the application against a PostgreSQL database as intended for production, you will need `psycopg2-binary`. First, ensure you have the necessary system-level build tools and PostgreSQL development headers installed. Then, install all dependencies:
+   - **For Development & Testing:**
+     This command installs all production packages plus development tools like `pytest`.
      ```bash
      pip install -r requirements-dev.txt
      ```
-     *(Note: `requirements-dev.txt` includes the production dependencies from `requirements.txt`)*
 
 4. **Set up PostgreSQL Database (for production-like setup only):**
 
