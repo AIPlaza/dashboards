@@ -1,3 +1,5 @@
+from typing import Optional
+
 import json
 import logging
 import os
@@ -30,7 +32,7 @@ def _get_default_headers():
     }
 
 
-def _make_binance_request(url: str, payload: dict) -> dict | None:
+def _make_binance_request(url: str, payload: dict) -> Optional[dict]:
     """
     Makes a POST request to a Binance P2P endpoint, handles common errors,
     and returns the full JSON response on success.
