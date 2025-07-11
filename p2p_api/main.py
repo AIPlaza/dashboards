@@ -40,18 +40,19 @@ def configure_database(db_url: str, engine_override=None, session_override=None)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _engine, _SessionLocal, global_settings
     setup_logging()
     logger.info("Starting P2P Dashboard API...")
-    global global_settings
     global_settings = Settings()
     if not global_settings.testing:
         configure_database(global_settings.database_url)
         # Make the session factory available to the dependency injector
         set_session_local(_SessionLocal)
+        # Create database tables
+        Base.metadata.create_all(bind=_engine)
     yield
 
     logger.info("Shutting down P2P Dashboard API...")
-    global _engine
     if not global_settings.testing and _engine:
         _engine.dispose()
 

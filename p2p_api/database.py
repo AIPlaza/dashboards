@@ -10,9 +10,12 @@ load_dotenv()
 
 
 Base = declarative_base()
+engine = None
+SessionLocal = None
 
 def init_db(db_url: str):
     """Initialize database engine and session factory."""
+    global engine, SessionLocal
     from p2p_api.config import Settings
     effective_url = db_url or Settings().database_url
 
