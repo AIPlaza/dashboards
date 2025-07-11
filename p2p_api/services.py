@@ -8,17 +8,17 @@ from . import crud, schemas
 
 logger = logging.getLogger(__name__)
 
-def _parse_numeric_value(value_str: Any) -> float:
+def _parse_numeric_value(value_str: Any) -> float | None:
     """
     Safely parses a numeric string like '1,234.56 USD' into a float.
-    Returns 0.0 if parsing fails.
+    Returns None if parsing fails.
     """
     if not isinstance(value_str, str) or not value_str:
-        return 0.0
+        return None
     try:
         return float(value_str.split(" ")[0].replace(",", ""))
     except (ValueError, IndexError):
-        return 0.0
+        return None
 
 def process_binance_offers(
     db: Session,
@@ -36,6 +36,13 @@ def process_binance_offers(
         try:
             price_value = _parse_numeric_value(offer_data.get("price"))
             available_value = _parse_numeric_value(offer_data.get("available"))
+
+            if price_value is None or available_value is None:
+                logger.warning(
+                    f"Skipping offer due to unparseable price or available amount: "
+                    f"Price='{offer_data.get('price')}', Available='{offer_data.get('available')}'"
+                )
+                continue
 
             limits_str = offer_data.get("limits", "").replace(",", "")
             if " - " not in limits_str:
