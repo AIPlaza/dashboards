@@ -50,6 +50,9 @@ async def lifespan(app: FastAPI):
         set_session_local(_SessionLocal)
         # Create database tables
         Base.metadata.create_all(bind=_engine)
+        # Include the admin router
+        from .routers import admin
+        app.include_router(admin.router)
     yield
 
     logger.info("Shutting down P2P Dashboard API...")
@@ -175,7 +178,4 @@ async def get_bybit_p2p_offers():
         status_code=501, detail="Bybit integration is not yet implemented."
     )
 
-# Include the admin router
-from .routers import admin
 
-app.include_router(admin.router)

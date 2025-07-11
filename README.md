@@ -32,7 +32,7 @@ Follow these instructions to get a copy of the project up and running on your lo
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.9, 3.10, 3.11, 3.12, and 3.13
 - PostgreSQL
 
 ### Installation

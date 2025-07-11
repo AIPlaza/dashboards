@@ -370,4 +370,117 @@ Second Try: (Idea is avoid looping over and over, also not to change core logic 
 
  The result:
 
- 
+ Running:
+
+ (.venv) PS C:\Users\DELL\P2P-Dashboard> uvicorn p2p_api.main:app --reload
+INFO:     Will watch for changes in these directories: ['C:\\Users\\DELL\\P2P-Dashboard']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [8928] using WatchFiles
+INFO:     Started server process [21924]
+INFO:     Waiting for application startup.
+2025-07-11 01:47:23,625 - p2p_api.main - INFO - Starting P2P Dashboard API...
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-07-11 01:48:15,210 - p2p_api.main - INFO - Shutting down P2P Dashboard API...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [21924]
+INFO:     Stopping reloader process [8928]
+(.venv) PS C:\Users\DELL\P2P-Dashboard> 
+
+
+But when opening in port stays loading very extensive, long time i could not even see it was connected
+
+so i am adding commits and find error thirugh guithub actions
+
+test (3.9)
+failed 1 minute ago in 27s
+Search logs
+1s
+0s
+0s
+23s
+1s
+Run python -m pytest
+ImportError while loading conftest '/home/runner/work/dashboards/dashboards/tests/conftest.py'.
+tests/conftest.py:12: in <module>
+    from p2p_api.main import app, get_db, get_api_key, configure_database
+p2p_api/main.py:11: in <module>
+    from . import (
+p2p_api/crud.py:4: in <module>
+    from . import auth, database as models, schemas
+p2p_api/auth.py:11: in <module>
+    from . import crud, schemas
+p2p_api/schemas.py:87: in <module>
+    class TokenData(BaseModel):
+p2p_api/schemas.py:88: in TokenData
+    username: str | None = None
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
+Error: Process completed with exit code 4.
+
+─────────────────────────────────────────────────────╮
+│  > read fixings in fixes.md so you can continue fi  │
+╰─────────────────────────────────────────────────────╯
+
+ ╭───────────────────────╮
+ │ ✔  ReadFile fixes.md  │
+ ╰───────────────────────╯
+✦ The fixes.md file indicates a TypeError in p2p_api/schemas.py due to the | operator in type hints, suggesting a
+  Python version older than 3.10. I will check the Python version and, if necessary, update the type hints to use
+  typing.Optional.
+
+
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✔  Shell python --version (Check the Python version in the current environment.)                       │
+ │                                                                                                        │
+                                                                                      │
+ │                                                                                                        │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ The Python version is 3.13.5, which should support the | operator for type hints. The TypeError in
+  p2p_api/schemas.py is unexpected. I will examine p2p_api/schemas.py to understand the context around the
+  TokenData class and its imports, as there might be a circular import or other subtle issue.
+ ╭─────────────────────────────────╮
+ │ ✔  ReadFile p2p_api\schemas.py  │
+ ╰─────────────────────────────────╯
+✦ The TypeError in p2p_api/schemas.py is unexpected given Python 3.13.5. I'll investigate the Pydantic version and,
+   as a workaround, change username: str | None = None to username: Optional[str] = None to see if it resolves the
+  issue.
+
+
+  First, I'll check the Pydantic version.
+ ╭─────────────────────────────────────────────────────────────────────╮
+ │ -  Shell pip show pydantic (Check the installed Pydantic version.)  │
+ ╰─────────────────────────────────────────────────────────────────────╯
+
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  > wait consider versions 3.9 3.10. 3.11 is testing in github so if you cconsider professional and relenant   │
+│    aligned to this versions its important to also stated in readme                                            │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+✦ You're right to point out the Python version compatibility. The TypeError with str | None strongly suggests that
+  the GitHub Actions environment is running a Python version older than 3.10, even though your local environment
+  shows 3.13.5.
+
+  To ensure compatibility with Python 3.9, 3.10, and 3.11, I will:
+
+
+   1. Modify p2p_api/schemas.py to use Optional[str] instead of str | None.
+   2. Add from typing import Optional to p2p_api/schemas.py.
+   3. Update README.md to specify the supported Python versions.
+
+
+  First, I'll modify p2p_api/schemas.py.
+ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ✔  Edit p2p_api\schemas.py: class TokenData(BaseModel):... => from typing import List, Optio...        │
+ │                                                                                                        │
+ │    84         token_type: str                                                                          │
+ │    85                                                                                                  │
+ │    86                                                                                                  │
+ │    87   + from typing import List, Optional                                                            │
+ │    88   +                                                                                              │
+ │    89     class TokenData(BaseModel):                                                                  │
+ │    88   -     username: str | None = None                                                              │
+ │    90   +     username: Optional[str] = None                                                           │
+ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+⠋ Analyzing Code Modifications (esc to cancel, 0s)
