@@ -84,5 +84,7 @@ class Token(BaseModel):
     token_type: str
 
 
+from typing import List, Optional
+
 class TokenData(BaseModel):
-    username: str | None = None
+    username: Optional[str] = None
