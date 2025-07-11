@@ -17,3 +17,15 @@ __pycache__/
 # SQLite databases
 *.db
 *.sqlite3
+<<<<<<< HEAD
+=======
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Log files
+*.log
+logs/
+>>>>>>> main

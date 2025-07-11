@@ -1,6 +1,12 @@
-Fix: tests and test infrastructure
+feat: Implement Streamlit frontend and update documentation
 
-- Fixed failing tests by mocking dependencies and correcting assertions.
-- Improved test setup by using an in-memory SQLite database for tests.
-- Configured API key handling for testing.
-- Ignored debug_crud.py.
+This commit introduces the initial version of the Streamlit frontend application, providing an educational and commercial interface for the P2P Dashboard.
+
+Key changes include:
+- Created `streamlit_app/` directory with `app.py`, `requirements.txt`, `utils/api.py`, and `docs/README.md`.
+- Implemented intelligent filters, offer visualization, financial charts (spread, market depth, liquidity curve, weighted average), analytical perspectives, and a notes/feedback panel in the Streamlit app.
+- Added educational documentation within the Streamlit app.
+- Updated `frontend.md` with the implementation plan.
+- Corrected `tradeType` to `trade_type` in `binance_offers.md` and `binance_pair_discovery.md`.
+- Removed `binance_supported_pairs.md` as its content is now covered by `binance_pair_discovery.md`.
+- Fixed issues in `app.py` related to duplicate `else` blocks, `KeyError` for `tradeType`, and `SettingWithCopyWarning`.
