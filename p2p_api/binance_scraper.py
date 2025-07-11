@@ -104,10 +104,20 @@ def get_binance_offers(
         for ad in p2p_data["data"]:
             adv = ad["adv"]
             advertiser = ad["advertiser"]
+            try:
+                price = float(adv.get('price'))
+                available = float(adv.get('surplusAmount'))
+            except (ValueError, TypeError):
+                logger.warning(
+                    f"Skipping offer due to invalid price or available amount: "
+                    f"Price='{adv.get('price')}', Available='{adv.get('surplusAmount')}'"
+                )
+                continue
+
             offer_details = {
                 "advertiser": advertiser.get("nickName"),
-                "price": f"{adv.get('price')} {data['fiat']}",
-                "available": f"{adv.get('surplusAmount')} {data['asset']}",
+                "price": f"{price} {data['fiat']}",
+                "available": f"{available} {data['asset']}",
                 "limits": (
                     f"{adv.get('minSingleTransAmount')} - "
                     f"{adv.get('maxSingleTransAmount')} {data['fiat']}"
