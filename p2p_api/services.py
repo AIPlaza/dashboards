@@ -8,6 +8,17 @@ from . import crud, schemas
 
 logger = logging.getLogger(__name__)
 
+def _parse_numeric_value(value_str: Any) -> float:
+    """
+    Safely parses a numeric string like '1,234.56 USD' into a float.
+    Returns 0.0 if parsing fails.
+    """
+    if not isinstance(value_str, str) or not value_str:
+        return 0.0
+    try:
+        return float(value_str.split(" ")[0].replace(",", ""))
+    except (ValueError, IndexError):
+        return 0.0
 
 def process_binance_offers(
     db: Session,
@@ -23,19 +34,13 @@ def process_binance_offers(
     db_offers = []
     for offer_data in offers_data:
         try:
-            price_str = offer_data.get("price", "")
-            price_value = float(price_str.split(" ")[0].replace(",", ""))
-
-            available_str = offer_data.get("available", "")
-            available_value = float(available_str.split(" ")[0].replace(",", ""))
+            price_value = _parse_numeric_value(offer_data.get("price"))
+            available_value = _parse_numeric_value(offer_data.get("available"))
 
             limits_str = offer_data.get("limits", "").replace(",", "")
             if " - " not in limits_str:
                 raise ValueError("Limits format is missing ' - ' separator")
-
-            min_limit_str, max_limit_str = limits_str.split(" - ")
-            min_limit_value = float(min_limit_str.split(" ")[0])
-            max_limit_value = float(max_limit_str.split(" ")[0])
+            min_limit_value, max_limit_value = [_parse_numeric_value(v) for v in limits_str.split(" - ")]
 
             offer_to_create = schemas.OfferCreate(
                 id=str(uuid.uuid4()),
