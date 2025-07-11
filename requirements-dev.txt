@@ -3,3 +3,4 @@
 # plus any tools needed only for development (like testing).
 -r requirements.txt
 pytest
+httpx # Required for FastAPI's TestClient

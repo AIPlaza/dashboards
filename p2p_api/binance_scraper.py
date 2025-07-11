@@ -8,13 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
-# Constants
-MAX_PAGES = 5  # Safeguard to prevent excessive pagination
+logger = logging.getLogger(__name__)
 
 def _get_default_headers():
     """Returns a dictionary of default headers for Binance P2P requests."""
@@ -36,6 +30,32 @@ def _get_default_headers():
     }
 
 
+def _make_binance_request(url: str, payload: dict) -> dict | None:
+    """
+    Makes a POST request to a Binance P2P endpoint, handles common errors,
+    and returns the full JSON response on success.
+    """
+    headers = _get_default_headers()
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("code") == "000000":
+            return data  # Return the whole successful response
+        else:
+            logger.error(f"Binance API returned an error: {data.get('message')}")
+            return None
+    except requests.exceptions.RequestException as e:
+        logger.error(f"An error occurred during Binance request to {url}: {e}")
+    except json.JSONDecodeError:
+        logger.error(f"Failed to decode Binance response from {url} as JSON.")
+    except KeyError as e:
+        logger.error(
+            f"Could not find expected data in Binance response from {url}: {e}"
+        )
+    return None
+
+
 @lru_cache(maxsize=128)
 def get_binance_offers(
     fiat: str = "VES",
@@ -45,20 +65,19 @@ def get_binance_offers(
     rows: int = 20,
 ):
     """
-    Fetches P2P offers from Binance with pagination.
+    Fetches a single page of P2P offers from Binance for on-demand API requests.
 
     Args:
         fiat: The fiat currency (e.g., 'VES', 'USD').
         asset: The crypto asset (e.g., 'USDT', 'BTC').
         tradeType: The trade type ('BUY' or 'SELL').
-        page: The starting page number.
+        page: The page number to fetch.
         rows: The number of results per page.
 
     Returns:
         A list of dictionaries, where each dictionary represents a P2P offer.
     """
     url = os.getenv("BINANCE_P2P_SEARCH_URL")
-    headers = _get_default_headers()
     data = {
         "proMerchantAds": False,
         "page": page,
@@ -71,66 +90,79 @@ def get_binance_offers(
         "publisherType": None,
     }
 
-    all_offers = []
-    current_page = page
-    pages_fetched = 0
+    logger.info(
+        f"Fetching single page of Binance offers: page={page}, fiat={fiat}, "
+        f"asset={asset}, tradeType={tradeType}"
+    )
+    p2p_data = _make_binance_request(url, data)
 
-    while pages_fetched < MAX_PAGES:
-        data["page"] = current_page
-        logging.info(
-            f"Fetching Binance offers: page={current_page}, fiat={fiat}, "
+    if not p2p_data or not p2p_data.get("data"):
+        return []
+
+    offers = []
+    try:
+        for ad in p2p_data["data"]:
+            adv = ad["adv"]
+            advertiser = ad["advertiser"]
+            offer_details = {
+                "advertiser": advertiser.get("nickName"),
+                "price": f"{adv.get('price')} {data['fiat']}",
+                "available": f"{adv.get('surplusAmount')} {data['asset']}",
+                "limits": (
+                    f"{adv.get('minSingleTransAmount')} - "
+                    f"{adv.get('maxSingleTransAmount')} {data['fiat']}"
+                ),
+                "payment_methods": [
+                    method.get("payType")
+                    for method in adv.get("tradeMethods", [])
+                ],
+            }
+            offers.append(offer_details)
+    except KeyError as e:
+        logger.error(
+            f"Could not find expected data in Binance response: {e}. "
+            "The API structure may have changed."
+        )
+    return offers
+
+
+def scrape_all_binance_offers(
+    fiat: str, asset: str, tradeType: str, max_pages: int = 10
+):
+    """
+    Scrapes multiple pages of P2P offers from Binance until no more data is found
+    or max_pages is reached. Intended for background jobs.
+
+    Args:
+        fiat: The fiat currency.
+        asset: The crypto asset.
+        tradeType: The trade type ('BUY' or 'SELL').
+        max_pages: A safeguard to prevent infinite loops.
+
+    Yields:
+        A dictionary representing a single P2P offer.
+    """
+    for page_num in range(1, max_pages + 1):
+        logger.info(
+            f"Bulk scraping Binance offers: page={page_num}/{max_pages}, fiat={fiat}, "
             f"asset={asset}, tradeType={tradeType}"
         )
-        try:
-            response = requests.post(url, headers=headers, json=data)
-            response.raise_for_status()
-            p2p_data = response.json()
+        page_offers = get_binance_offers(
+            fiat=fiat, asset=asset, tradeType=tradeType, page=page_num, rows=20
+        )
 
-            if p2p_data.get("code") == "000000" and p2p_data.get("data"):
-                for ad in p2p_data["data"]:
-                    adv = ad["adv"]
-                    advertiser = ad["advertiser"]
-                    offer_details = {
-                        "advertiser": advertiser.get("nickName"),
-                        "price": f"{adv.get('price')} {data['fiat']}",
-                        "available": f"{adv.get('surplusAmount')} {data['asset']}",
-                        "limits": (
-                            f"{adv.get('minSingleTransAmount')} - "
-                            f"{adv.get('maxSingleTransAmount')} {data['fiat']}"
-                        ),
-                        "payment_methods": [
-                            method.get("payType")
-                            for method in adv.get("tradeMethods", [])
-                        ],
-                    }
-                    all_offers.append(offer_details)
-
-                current_page += 1
-                pages_fetched += 1
-            else:
-                if p2p_data.get("code") != "000000":
-                    logging.error(
-                        f"Binance API returned an error: {p2p_data.get('message')}"
-                    )
-                break  # Exit loop if no more data or API error
-
-        except requests.exceptions.RequestException as e:
-            logging.error(f"An error occurred during Binance request: {e}")
-            break
-        except KeyError as e:
-            logging.error(
-                f"Could not find expected data in Binance response: {e}. "
-                "The API structure may have changed."
-            )
-            break
-        except json.JSONDecodeError:
-            logging.error("Failed to decode Binance response as JSON.")
+        if not page_offers:
+            logger.info(f"No more offers found on page {page_num}. Stopping scrape.")
             break
 
-    if pages_fetched >= MAX_PAGES:
-        logging.warning(f"Reached max pages ({MAX_PAGES}) for this request.")
+        for offer in page_offers:
+            yield offer
 
-    return all_offers
+    else:  # This 'else' belongs to the 'for' loop
+        logger.warning(
+            f"Reached max_pages limit ({max_pages}) for {fiat}-{asset}-{tradeType}. "
+            "There might be more data available."
+        )
 
 
 @lru_cache(maxsize=4)
@@ -141,32 +173,22 @@ def get_binance_pairs():
     Returns:
         A list of dictionaries, each representing a supported trading pair.
     """
-    logging.info("Fetching Binance pairs...")
+    logger.info("Fetching Binance pairs...")
     url = os.getenv("BINANCE_P2P_PAIRS_URL")
-    headers = _get_default_headers()
+    response_data = _make_binance_request(url, payload={})
 
-    try:
-        response = requests.post(url, headers=headers, json={})
-        response.raise_for_status()
-        data = response.json()
-
-        if data.get("code") == "000000" and data.get("data"):
-            pairs = []
-            for item in data["data"]:
-                fiat = item.get("fiatUnit")
-                assets = item.get("assetList", [])
-                for asset in assets:
-                    pairs.append({"fiat": fiat, "asset": asset, "tradeType": "BUY"})
-                    pairs.append({"fiat": fiat, "asset": asset, "tradeType": "SELL"})
-            return pairs
-        else:
-            logging.error(
-                f"Binance API for pairs returned an error: {data.get('message')}"
-            )
-            return []
-    except requests.exceptions.RequestException as e:
-        logging.error(f"An error occurred during Binance pairs request: {e}")
+    if not response_data or not response_data.get("data"):
         return []
-    except json.JSONDecodeError:
-        logging.error("Failed to decode Binance pairs response as JSON.")
+
+    pairs = []
+    try:
+        for item in response_data["data"]:
+            fiat = item["fiatUnit"]
+            assets = item.get("assetList", [])
+            for asset in assets:
+                pairs.append({"fiat": fiat, "asset": asset, "tradeType": "BUY"})
+                pairs.append({"fiat": fiat, "asset": asset, "tradeType": "SELL"})
+        return pairs
+    except KeyError as e:
+        logger.error(f"Unexpected structure in Binance pairs response: missing key {e}")
         return []
