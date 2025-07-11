@@ -1,6 +1,0 @@
-Fix: tests and test infrastructure
-
-- Fixed failing tests by mocking dependencies and correcting assertions.
-- Improved test setup by using an in-memory SQLite database for tests.
-- Configured API key handling for testing.
-- Ignored debug_crud.py.
