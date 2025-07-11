@@ -1,0 +1,19 @@
+# Environments
+.env # Local environment variables - DO NOT COMMIT
+.venv/
+venv/
+
+# IDE / Editor specific
+.vscode/
+.idea/
+
+# Python Caches
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+*$py.class
+
+# SQLite databases
+*.db
+*.sqlite3
