@@ -1,7 +1,7 @@
 import datetime
 
 from dotenv import load_dotenv
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Table, create_engine, event
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Table, create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
@@ -101,6 +101,31 @@ class PaymentMethod(Base):
     def __repr__(self):
         return f"<PaymentMethod(name='{self.name}')>"
 
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+
+    # Relationship to APIKey
+    api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
+
+
+class APIKey(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prefix = Column(String, unique=True, index=True, nullable=False)
+    hashed_key = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+    name = Column(String)  # A user-friendly name for the key, e.g., "My App"
+
+    user = relationship("User", back_populates="api_keys")
 # SQLite-specific configuration for better concurrency
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):

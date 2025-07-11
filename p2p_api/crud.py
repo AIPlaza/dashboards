@@ -1,8 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import database as models
-from . import schemas
+from . import database as models, schemas
 
 
 def get_or_create_payment_method(db: Session, name: str):
@@ -60,3 +59,53 @@ def create_offer(db: Session, offer: schemas.OfferCreate):
         advertiser=db_offer.advertiser,
         payment_methods=[pm.name for pm in db_offer.payment_methods]
     )
+
+
+# User CRUD
+def get_user_by_username(db: Session, username: str):
+    return db.query(models.User).filter(models.User.username == username).first()
+
+
+def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
+    db_user = models.User(username=user.username, hashed_password=hashed_password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+
+# API Key CRUD
+def get_api_key_by_prefix(db: Session, prefix: str):
+    return db.query(models.APIKey).filter(models.APIKey.prefix == prefix).first()
+
+
+def get_user_api_keys(db: Session, user_id: int):
+    return db.query(models.APIKey).filter(models.APIKey.user_id == user_id).all()
+
+
+def create_api_key(db: Session, key: schemas.APIKeyCreate, user_id: int):
+    key_data = auth.generate_api_key()
+    db_key = models.APIKey(
+        prefix=key_data["prefix"],
+        hashed_key=key_data["hashed_key"],
+        name=key.name,
+        user_id=user_id,
+    )
+    db.add(db_key)
+    db.commit()
+    db.refresh(db_key)
+    # Return the full key for the user to copy. It won't be stored.
+    return {"key": key_data["full_key"], "db_key": db_key}
+
+
+def deactivate_api_key(db: Session, prefix: str, user_id: int):
+    db_key = (
+        db.query(models.APIKey)
+        .filter(models.APIKey.prefix == prefix, models.APIKey.user_id == user_id)
+        .first()
+    )
+    if db_key:
+        db_key.is_active = False
+        db.commit()
+        db.refresh(db_key)
+    return db_key

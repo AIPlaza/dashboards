@@ -1,5 +1,4 @@
 import logging
-import secrets
 import uuid
 from contextlib import asynccontextmanager
 from typing import List, Literal
@@ -11,13 +10,17 @@ from sqlalchemy.orm import Session
 
 from . import (
     crud,
+    database as models,
     schemas,
+    services,
 )
 from .binance_scraper import get_binance_offers, get_binance_pairs
 from .config import Settings
-from .database import init_db
+from .database import Base, init_db
 from .exceptions import ScraperError
 from .logging_config import setup_logging
+from .dependencies import get_db, set_session_local
+from .auth import pwd_context
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,8 @@ async def lifespan(app: FastAPI):
     global_settings = Settings()
     if not global_settings.testing:
         configure_database(global_settings.database_url)
+        # Make the session factory available to the dependency injector
+        set_session_local(_SessionLocal)
     yield
 
     logger.info("Shutting down P2P Dashboard API...")
@@ -62,6 +67,10 @@ tags_metadata = [
     {
         "name": "System",
         "description": "System health and status endpoints.",
+    },
+    {
+        "name": "Admin",
+        "description": "Endpoints for user and API key management.",
     },
 ]
 
@@ -90,24 +99,23 @@ async def scraper_exception_handler(request: Request, exc: ScraperError):
     )
 
 
-async def get_api_key(api_key: str = Depends(api_key_header)):
-    if not secrets.compare_digest(api_key, global_settings.api_key):
+async def get_api_key(
+    api_key: str = Depends(api_key_header), db: Session = Depends(get_db)
+):
+    """Dependency to validate API Key. Key format should be 'prefix_secret'."""
+    if "_" not in api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key format"
+        )
+
+    prefix, _, secret = api_key.rpartition("_")
+    db_key = crud.get_api_key_by_prefix(db, prefix=prefix)
+
+    if not db_key or not db_key.is_active or not pwd_context.verify(secret, db_key.hashed_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing API Key"
         )
-
-# Dependency to get DB session
-def get_db(db: Session = Depends(lambda: None)):
-    if _SessionLocal is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database not initialized"
-        )
-    db = _SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    return db_key
 
 @app.get("/", tags=["System"])
 async def read_root():
@@ -139,46 +147,13 @@ async def get_binance_p2p_offers(
         # As per the audit, wrap scraper exceptions.
         raise ScraperError(f"An unexpected error occurred with the Binance scraper: {str(e)}")
 
-    db_offers = []
-    for offer_data in offers_data:
-        try:
-            price_str = offer_data.get("price", "")
-            price_value = float(price_str.split(" ")[0].replace(",", ""))
-
-            available_str = offer_data.get("available", "")
-            available_value = float(available_str.split(" ")[0].replace(",", ""))
-
-            limits_str = offer_data.get("limits", "").replace(",", "")
-            if " - " not in limits_str:
-                raise ValueError("Limits format is missing ' - ' separator")
-
-            min_limit_str, max_limit_str = limits_str.split(" - ")
-            min_limit_value = float(min_limit_str.split(" ")[0])
-            max_limit_value = float(max_limit_str.split(" ")[0])
-
-            offer_to_create = schemas.OfferCreate(
-                id=str(uuid.uuid4()),
-                fiat=fiat,
-                price=price_value,
-                available=available_value,
-                min_limit=min_limit_value,
-                max_limit=max_limit_value,
-                payment_methods=offer_data.get("payment_methods", []),
-                trade_type=trade_type,
-                advertiser=offer_data.get("advertiser"),
-                asset=asset,
-            )
-            db_offer = crud.create_offer(db, offer=offer_to_create)
-            db_offers.append(db_offer)
-
-        except (ValueError, IndexError, KeyError, AttributeError) as e:
-            # Use structured logging instead of print
-            logger.warning(
-                f"Skipping offer due to parsing error: {e}", extra={"offer_data": offer_data}
-            )
-            continue
-
-    return db_offers
+    return services.process_binance_offers(
+        db=db,
+        offers_data=offers_data,
+        fiat=fiat,
+        asset=asset,
+        trade_type=trade_type,
+    )
 
 @app.get(
     "/api/v1/binance/pairs",
@@ -198,3 +173,8 @@ async def get_bybit_p2p_offers():
     raise HTTPException(
         status_code=501, detail="Bybit integration is not yet implemented."
     )
+
+# Include the admin router
+from .routers import admin
+
+app.include_router(admin.router)

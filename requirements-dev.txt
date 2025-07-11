@@ -1,0 +1,5 @@
+# This file is for setting up a development environment.
+# It installs all production packages from requirements.txt,
+# plus any tools needed only for development (like testing).
+-r requirements.txt
+pytest
