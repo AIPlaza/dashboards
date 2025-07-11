@@ -1,11 +1,11 @@
-from typing import Generator
+from typing import Generator, Optional
 from functools import lru_cache
 
 from sqlalchemy.orm import Session, sessionmaker
 
 from .config import Settings
 
-_SessionLocal: sessionmaker | None = None
+_SessionLocal: Optional[sessionmaker] = None
 
 @lru_cache()
 def get_settings():
