@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -8,7 +8,7 @@ from . import crud, schemas
 
 logger = logging.getLogger(__name__)
 
-def _parse_numeric_value(value_str: Any) -> float | None:
+def _parse_numeric_value(value_str: Any) -> Optional[float]:
     """
     Safely parses a numeric string like '1,234.56 USD' into a float.
     Returns None if parsing fails.
