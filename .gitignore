@@ -1,5 +1,6 @@
 # Environments
 .env # Local environment variables - DO NOT COMMIT
+**/.env # Ignore .env files in subdirectories
 .venv/
 venv/
 
