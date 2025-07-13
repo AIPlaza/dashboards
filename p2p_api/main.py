@@ -86,10 +86,10 @@ app = FastAPI(
     openapi_tags=tags_metadata,
     contact={
         "name": "P2P Dashboard Support",
-        "url": "https://github.com/your-username/P2P-Dashboard",
-        "email": "support@example.com",
+        "url": "https://api.bolivarparalelo.org",
+        "email": "info@api.bolivarparalelo.org",
     },
-    license_info={"name": "MIT License"},
+    license_info={"name": "Usage License"},
 )
 
 @app.exception_handler(ScraperError)
