@@ -1,11 +1,11 @@
 import datetime
+import os
 
 from dotenv import load_dotenv
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Table, create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
-load_dotenv()
 
 
 
@@ -13,11 +13,17 @@ Base = declarative_base()
 engine = None
 SessionLocal = None
 
-def init_db(db_url: str):
-    """Initialize database engine and session factory."""
+def init_db():
+    """Initialize database engine and session factory from environment variable."""
     global engine, SessionLocal
-    from p2p_api.config import Settings
-    effective_url = db_url or Settings().database_url
+
+    # Read the database URL from environment variable
+    database_url = os.environ.get("DATABASE_URL") # Use the environment variable name you will set on Render
+
+    if not database_url:
+        # Handle the case where the environment variable is not set (e.g., raise an error or log a warning)
+        # For production on Render, this variable *should* be set.
+        raise ValueError("DATABASE_URL environment variable not set.")
 
     # Configure engine based on database type
     if "sqlite" in effective_url:
