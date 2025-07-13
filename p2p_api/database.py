@@ -13,12 +13,12 @@ Base = declarative_base()
 engine = None
 SessionLocal = None
 
-def init_db():
+def init_db(database_url: str):
     """Initialize database engine and session factory from environment variable."""
     global engine, SessionLocal
 
     # Read the database URL from environment variable
-    database_url = os.environ.get("DATABASE_URL") # Use the environment variable name you will set on Render
+    
 
     if not database_url:
         # Handle the case where the environment variable is not set (e.g., raise an error or log a warning)
@@ -26,9 +26,9 @@ def init_db():
         raise ValueError("DATABASE_URL environment variable not set.")
 
     # Configure engine based on database type
-    if "sqlite" in effective_url:
+    if "sqlite" in database_url:
         engine = create_engine(
-            effective_url,
+            database_url,
             connect_args={
                 "check_same_thread": False,
                 "timeout": 30,
@@ -40,7 +40,7 @@ def init_db():
     else:
         # PostgreSQL or other databases
         engine = create_engine(
-            effective_url,
+            database_url,
             pool_pre_ping=True,
             pool_recycle=300,
             echo=False,
