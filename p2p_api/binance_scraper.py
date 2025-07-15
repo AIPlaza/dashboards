@@ -8,9 +8,13 @@ from functools import lru_cache
 import requests
 from dotenv import load_dotenv
 
+from .config import Settings
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+settings = Settings()
 
 def _get_default_headers():
     """Returns a dictionary of default headers for Binance P2P requests."""
@@ -79,7 +83,7 @@ def get_binance_offers(
     Returns:
         A list of dictionaries, where each dictionary represents a P2P offer.
     """
-    url = os.getenv("BINANCE_P2P_SEARCH_URL")
+    url = settings.binance_p2p_search_url
     data = {
         "proMerchantAds": False,
         "page": page,
@@ -186,7 +190,7 @@ def get_binance_pairs():
         A list of dictionaries, each representing a supported trading pair.
     """
     logger.info("Fetching Binance pairs...")
-    url = os.getenv("BINANCE_P2P_PAIRS_URL")
+    url = settings.binance_p2p_pairs_url
     response_data = _make_binance_request(url, payload={})
 
     if not response_data or not response_data.get("data"):
