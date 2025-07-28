@@ -1,346 +1,69 @@
-✅ Imagen generada con capas y workflow claros. Ahora seguimos con el paso 2:
+GitGuardian has detected the following PostgreSQL URI exposed within your GitHub account.
+Details
 
-**“Ayúdame a implementar `/admin/monitoring/summary` con auth y schema”**
+- Secret type: PostgreSQL URI
 
----
+- Repository: AIPlaza/dashboards
 
-## 📌 Objetivo
+- Pushed date: July 28th 2025, 15:40:47 UTC
 
-Crear un endpoint privado en tu FastAPI de ingesta que entregue el resumen generado por `get_run_stats()`, accesible solo para administradores autenticados por token JWT.
+Fix this secret leak
+Mark as false positive
 
----
 
-### 🧠 Requisitos
+Run python -m pytest
+ImportError while loading conftest '/home/runner/work/dashboards/dashboards/tests/conftest.py'.
+tests/conftest.py:12: in <module>
+    from p2p_api.main import app, get_db, get_api_key, configure_database
+p2p_api/main.py:11: in <module>
+    from . import (
+p2p_api/crud.py:27: in <module>
+    def finalize_run(db: Session, run_id: int, total_offers: int | None = None, error_message: str | None = None):
+E   TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
+Error: Process completed with exit code 4.
 
-* Ruta: `/admin/monitoring/summary`
-* Método: `GET`
-* Protegido con `Depends(get_current_active_user)`
-* Devuelve el dict de `get_run_stats(db)`
+Before you begin, it is CRITICAL to back up your repository. You can simply duplicate your
+  C:\Users\DELL\P2P-Dashboard folder to C:\Users\DELL\P2P-Dashboard_backup or similar.
 
----
+  ---
 
-## 🧩 PASO A PASO
+  Instructions to Remove `DATABASE_URL` from Git History
 
-### 1. 🔐 Autenticación ya está lista
+  We will use git filter-repo for this. If you don't have it installed, you might need to install it first. You 
+  can usually install it via pip:
+   1 pip install git-filter-repo
+  (You might need to add git-filter-repo to your system's PATH if it's not found after installation.)
 
-Tu archivo `routers/admin.py` ya importa:
+  Once `git-filter-repo` is installed, follow these steps:
 
-```python
-from ..auth import get_current_active_user
-```
+   1. Navigate to your repository:
+      Open your terminal or command prompt and change your directory to your project's root:
+   1     cd C:\Users\DELL\P2P-Dashboard
 
-Perfecto, lo reutilizaremos.
+   2. Ensure you are on the `production` branch:
+   1     git checkout production
 
----
+   3. Run `git filter-repo` to remove the `DATABASE_URL` from all files in your history:
 
-### 2. 📦 Servicio ya disponible (`get_run_stats`)
+      Important: You need to replace <YOUR_ACTUAL_DATABASE_URL_VALUE> with the exact sensitive string that was  
+  committed. This is the full value of your DATABASE_URL environment variable, including postgresql://,
+  username, password, host, port, and database name.
 
-Como ya creamos `services.get_run_stats(db)`, ahora solo conectamos.
+   1     git filter-repo --path .env --replace-text
+     '<YOUR_ACTUAL_DATABASE_URL_VALUE>==REDACTED_DATABASE_URL'
 
----
+       * Example: If your .env file contained DATABASE_URL=postgresql://user:pass@host:5432/mydb, then
+         <YOUR_ACTUAL_DATABASE_URL_VALUE> should be postgresql://user:pass@host:5432/mydb.
 
-### 3. 🛠️ Agrega el Endpoint
+   4. Force push the rewritten history:
+      After git filter-repo completes, your local history will be rewritten. You must force push to update the  
+  remote repository.
 
-En tu archivo `routers/admin.py`, añade:
+   1     git push origin production --force
+      Note: If others are collaborating on this branch, they will need to rebase their work on top of the new   
+  history.
 
-```python
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from ..dependencies import get_db
-from .. import services, models
+  ---
 
-router = APIRouter(
-    prefix="/admin",
-    tags=["Admin Monitoring"],
-)
-
-@router.get("/monitoring/summary")
-async def monitoring_summary(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user),
-):
-    """
-    Returns summary stats of ingestion runs and offer activity in the last 24h.
-    Requires admin authentication (JWT).
-    """
-    return services.get_run_stats(db)
-```
-
----
-
-## 🧪 Ejemplo de llamada (con token)
-
-```http
-GET /admin/monitoring/summary
-Authorization: Bearer <tu_token_jwt>
-```
-
----
-
-### 🧪 Ejemplo de respuesta
-
-```json
-{
-  "last_successful_run": "2025-07-28T15:42:00Z",
-  "error_count_last_24h": 0,
-  "offers_last_24h": [
-    {
-      "asset": "USDT",
-      "fiat": "VES",
-      "trade_type": "SELL",
-      "count": 3114,
-      "available": 82634.1,
-      "avg_price": 38.2
-    }
-  ]
-}
-```
-
----
-
-## ✅ ¿Qué sigue?
-
-**“Optimiza el logging\_config.py y muéstrame cómo usarlo correctamente”**
-¿Listo para ese paso? Puedo:
-
-* Reescribir tu `logging_config.py`
-* Definir handlers por archivo, nivel, consola
-* Mostrar cómo loggear por módulo (`logger = getLogger(__name__)`)
-
-¿Procedo?
-
-Perfecto. Vamos con el paso **3 de 5** para cerrar Layer 1:
-
----
-
-# ✅ Paso 3: **Optimización de `logging_config.py` y uso profesional de logs**
-
----
-
-## 🎯 Objetivo
-
-Tener un sistema de logs profesional para:
-
-* Auditar ejecuciones
-* Detectar errores en workers
-* Monitorear qué endpoints se usan y cuándo
-* Registrar métricas clave (cantidad de ofertas insertadas, errores, tiempos)
-
----
-
-## 🛠️ 1. Reescribe `logging_config.py`
-
-Crea o reemplaza este archivo como:
-
-```python
-# p2p_api/logging_config.py
-
-import logging
-from logging.handlers import RotatingFileHandler
-import os
-
-LOG_DIR = "logs"
-LOG_FILE = "p2p_api.log"
-
-def setup_logging():
-    os.makedirs(LOG_DIR, exist_ok=True)
-
-    log_format = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-
-    handlers = [
-        logging.StreamHandler(),  # consola
-        RotatingFileHandler(
-            os.path.join(LOG_DIR, LOG_FILE),
-            maxBytes=2 * 1024 * 1024,  # 2MB por archivo
-            backupCount=5  # guarda hasta 5 archivos rotados
-        )
-    ]
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format=log_format,
-        handlers=handlers
-    )
-
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-```
-
----
-
-## 📦 2. Llama `setup_logging()` correctamente
-
-Tu `main.py` o `lifespan()` ya lo tiene:
-
-```python
-setup_logging()
-```
-
-Confirma que eso se ejecuta **al inicio de la app**. Si no, ponlo explícito en tu `main.py` o `lifespan()`.
-
----
-
-## 📌 3. Usa logs por módulo
-
-En cada archivo, al inicio:
-
-```python
-import logging
-logger = logging.getLogger(__name__)
-```
-
-Y luego:
-
-```python
-logger.info("Run created with ID %s", run.id)
-logger.warning("Failed to fetch offers: %s", str(e))
-logger.error("ScraperError at page %d: %s", page, error.message)
-```
-
----
-
-## 🧪 4. Ejemplo de uso en tu endpoint `/binance/offers`
-
-```python
-@app.get("/api/v1/binance/offers", ...)
-async def get_binance_p2p_offers(...):
-    run = None
-    try:
-        run = crud.create_run(db=db, exchange="binance")
-        logger.info("Started run %s for asset=%s, fiat=%s", run.id, asset, fiat)
-
-        offers_data = get_binance_offers(...)  # scrape
-
-        created = services.process_binance_offers(..., run_id=run.id)
-        crud.finalize_run(db=db, run_id=run.id, total_offers=created)
-
-        logger.info("Run %s completed with %s offers", run.id, created)
-        return {"created": created}
-
-    except Exception as e:
-        if run:
-            crud.finalize_run(db=db, run_id=run.id, error_message=str(e))
-        logger.exception("Run %s failed: %s", run.id if run else "N/A", str(e))
-        raise ScraperError(...)
-```
-
----
-
-## 📁 Resultado
-
-Tu carpeta `logs/` se verá así:
-
-```
-logs/
-  └── p2p_api.log
-  └── p2p_api.log.1  (rotado)
-  └── ...
-```
-
-Y los logs lucirán así:
-
-```
-2025-07-28 18:05:02 | INFO | p2p_api.routes.binance | Started run 1032 for asset=USDT, fiat=VES
-2025-07-28 18:05:04 | INFO | p2p_api.services.ingest | Inserted 311 offers
-2025-07-28 18:05:04 | INFO | p2p_api.routes.binance | Run 1032 completed with 311 offers
-```
-
----
-
-## ✅ ¿Qué sigue?
-
-Siguiente paso: **Check final de Layer 1**
-Te entregaré una **checklist técnica y estratégica** para confirmar que estás listo para diseñar los workers.
-
-¿Procedo?
-
-Perfecto. Cerramos **Layer 1** con una revisión profesional.
-
----
-
-# ✅ Paso 4 de 5: **Checklist para Cierre de Layer 1 – Ingest Layer**
-
-Esta checklist asegura que tu backend está **preparado para recibir data de workers**, escalar, y ser usado como base para las siguientes capas.
-
----
-
-## 🧱 ESTRUCTURA Y MODELADO DE DATOS
-
-| Requisito                                                        | Estado | Verificación                          |
-| ---------------------------------------------------------------- | ------ | ------------------------------------- |
-| Tablas: `offers`, `payment_methods`, `users`, `api_keys`, `runs` | ✅      | Migración aplicada con Alembic        |
-| Relaciones FK y M\:N (`offers ↔ payment_methods`)                | ✅      | Incluye tabla `offer_payment_methods` |
-| Campo `run_id` agregado a `offers`                               | ✅      | Útil para trazabilidad por extracción |
-| Tabla `runs` con `fetched_at`, `error_message`, `total_offers`   | ✅      | Para versionar ejecuciones            |
-| `Base.metadata.create_all()` reemplazado por Alembic             | ✅      | Evita colisiones y desorden en schema |
-
----
-
-## 🔐 AUTENTICACIÓN Y ACCESO
-
-| Requisito                                       | Estado | Verificación                               |
-| ----------------------------------------------- | ------ | ------------------------------------------ |
-| Registro de `users` admin                       | ✅      | Ruta protegida en `/admin/users/`          |
-| Generación de `API Keys` con prefijo y secreto  | ✅      | CRUD implementado                          |
-| Validación de API Key en endpoints de ingestión | ✅      | `Depends(get_api_key)`                     |
-| Autenticación por JWT para endpoints admin      | ✅      | `/admin/token` + `get_current_active_user` |
-
----
-
-## 🚦 INGESTIÓN Y MONITOREO
-
-| Requisito                                        | Estado | Verificación                                 |
-| ------------------------------------------------ | ------ | -------------------------------------------- |
-| Endpoint `/api/v1/binance/offers` funcional      | ✅      | Extrae, guarda, actualiza run                |
-| Logging estructurado en consola + archivo        | ✅      | `RotatingFileHandler`, con logs por módulo   |
-| Función `get_run_stats(db)` creada               | ✅      | Agrega resumen: último run, errores, volumen |
-| Endpoint `/admin/monitoring/summary` funcionando | ✅      | Devuelve JSON con KPIs de ejecución          |
-| Uso de `logger.exception`, `logger.info`, etc.   | ✅      | Auditabilidad clara por ejecución            |
-
----
-
-## 📁 ORGANIZACIÓN Y CALIDAD DEL CÓDIGO
-
-| Requisito                                                | Estado | Verificación                          |
-| -------------------------------------------------------- | ------ | ------------------------------------- |
-| Código modular (`crud`, `schemas`, `models`, `services`) | ✅      | Separación de responsabilidades       |
-| Manejo de errores con `ScraperError` y logs              | ✅      | HTTP 503 en caso de falla controlada  |
-| Diagrama de arquitectura generado                        | ✅      | Imagen profesional clara de las capas |
-
----
-
-## 🧠 ESTRATÉGICO / ESCALABILIDAD
-
-| Requisito                                       | Estado | Verificación                        |
-| ----------------------------------------------- | ------ | ----------------------------------- |
-| Workers externos planeados como paquetes Python | ✅      | Layer 1 solo recibe, no scrapea     |
-| Pensado para deploy multi-nodo (MiniPC, países) | ✅      | API Key + ejecución descentralizada |
-| Preparado para Layer 2: exposición pública      | ✅      | Lectura separada de escritura       |
-| Preparado para Layer 3: dashboards, MCP         | ✅      | Base limpia, trazable, escalable    |
-
----
-
-# ✅ CONCLUSIÓN
-
-Tu Layer 1 está oficialmente:
-
-> 💥 **Listo para producción**
-> ⚙️ **Listo para integración con workers**
-> 📊 **Listo para ser monitoreado**
-> 🧱 **Base sólida para Layer 2 y 3**
-
----
-
-## 🚀 ¿Qué sigue?
-
-**Paso 5 de 5: Iniciar Layer 1.5 – Diseño del Worker Package (Extractor)**
-
-Puedo ayudarte a:
-
-* Definir la estructura del paquete Python
-* Crear `main.py` con loop de extracción
-* Autenticarse con API Key
-* Consumir `/api/v1/binance/offers` con params
-* Enviar resultados al backend Layer 1
-
-¿Iniciamos ahora el diseño del **Worker v1**?
+  Once you have successfully completed these steps and confirmed that the sensitive information is no longer    
+  visible in your GitHub repository's history (check the commit history on GitHub), please inform me.
