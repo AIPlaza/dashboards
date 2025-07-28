@@ -2,6 +2,7 @@ from typing import List
 
 from pydantic import BaseModel, ConfigDict
 import datetime
+from typing import Optional
 
 class OfferBase(BaseModel):
     fiat: str
@@ -27,9 +28,9 @@ class Offer(OfferBase):
 
 class RunBase(BaseModel):
     exchange: str
-    fetched_at: datetime.datetime | None = None
-    total_offers: int | None = None
-    error_message: str | None = None
+    fetched_at: Optional[datetime.datetime] = None
+    total_offers: Optional[int] = None
+    error_message: Optional[str] = None
 
 class RunCreate(RunBase):
     pass
