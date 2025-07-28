@@ -29,7 +29,7 @@ def process_binance_offers(
     fiat: str,
     asset: str,
     trade_type: str,
-    run_id: int | None = None,
+    run_id: Optional[int] = None,
 ) -> List[schemas.Offer]:
     """
     Processes a list of raw offer data from Binance, parses them,
