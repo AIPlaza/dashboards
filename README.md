@@ -9,7 +9,8 @@ A powerful and flexible API for scraping P2P trading data from cryptocurrency ex
 - [Features](#features)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
+  - [Local Installation](#local-installation)
+  - [Docker Usage](#docker-usage)
 - [Usage](#usage)
 - [API Endpoints](#api-endpoints)
   - [Get Binance Offers](#get-binance-offers)
@@ -25,6 +26,7 @@ A powerful and flexible API for scraping P2P trading data from cryptocurrency ex
 - **Flexible Queries:** Filter offers by fiat currency, crypto asset, trade type, and more.
 - **Extensible:** Easily add new exchanges and trading pairs.
 - **Secure:** Protect your API with API key authentication.
+- **Containerized Deployment:** Ready for deployment using Docker for consistent environments.
 
 ## Getting Started
 
@@ -32,10 +34,11 @@ Follow these instructions to get a copy of the project up and running on your lo
 
 ### Prerequisites
 
-- Python 3.9, 3.10, 3.11, 3.12, and 3.13
+- Python 3.10+ (for local development)
 - PostgreSQL
+- Docker (for containerized deployment)
 
-### Installation
+### Local Installation
 
 1. **Clone the repository:**
 
@@ -95,14 +98,38 @@ Follow these instructions to get a copy of the project up and running on your lo
      2. Download and install PostgreSQL for Windows.
      3. After installation, try installing the project dependencies again.
 
+### Docker Usage
+
+Alternatively, you can build and run the application using Docker for a containerized environment.
+
+1. **Build the Docker image:**
+
+   ```bash
+   docker build -t p2p-dashboard-api .
+   ```
+
+2. **Run the Docker container:**
+
+   Ensure your `.env` file is correctly configured with your `DATABASE_URL` and `API_KEY`.
+
+   ```bash
+   docker run -d --name p2p-dashboard -p 8000:8000 --env-file ./.env p2p-dashboard-api
+   ```
+
+   - `-d`: Runs the container in detached mode (in the background).
+   - `--name p2p-dashboard`: Assigns a name to your container for easy reference.
+   - `-p 8000:8000`: Maps port 8000 on your host to port 8000 in the container.
+   - `--env-file ./.env`: Mounts your local `.env` file into the container to provide environment variables.
 
 ## Usage
 
-To run the application, use the following command:
+To run the application locally (after local installation):
 
 ```bash
 uvicorn p2p_api.main:app --reload
 ```
+
+If running via Docker, the application will start automatically when the container runs.
 
 The API will be available at `http://127.0.0.1:8000`.
 
