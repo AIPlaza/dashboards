@@ -1,1 +1,1 @@
-pydantic fix
+Update fixes.md with new error logs
