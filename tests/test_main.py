@@ -27,8 +27,7 @@ def test_get_binance_offers_success(mock_get_binance_offers, client, db_session,
     )
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
-    assert response.json()[0]["advertiser"] == "TestUser"
+    assert response.json() == {"message": "Successfully processed 1 offers for run 1"}
 
 def test_get_binance_offers_missing_api_key(client_no_auth):
     response = client_no_auth.get("/api/v1/binance/offers")
@@ -61,7 +60,7 @@ def test_get_binance_offers_parsing_error(mock_get_binance_offers, client):
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 0
+    assert data == {"message": "Successfully processed 0 offers for run 1"}
 
 @patch('p2p_api.main.get_binance_offers')
 def test_get_binance_offers_api_error(mock_get_binance_offers, client):

@@ -1,7 +1,10 @@
 from sqlalchemy.exc import IntegrityError
+import logging
 from sqlalchemy.orm import Session
 
 from . import auth, database as models, schemas
+
+logger = logging.getLogger(__name__)
 
 
 def get_or_create_payment_method(db: Session, name: str):
@@ -13,7 +16,28 @@ def get_or_create_payment_method(db: Session, name: str):
     return method
 
 
-def create_offer(db: Session, offer: schemas.OfferCreate):
+def create_run(db: Session, exchange: str) -> models.Run:
+    run = models.Run(exchange=exchange)
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def finalize_run(db: Session, run_id: int, total_offers: int | None = None, error_message: str | None = None):
+    run = db.query(models.Run).filter(models.Run.id == run_id).first()
+    if not run:
+        return None
+    if total_offers is not None:
+        run.total_offers = total_offers
+    if error_message is not None:
+        run.error_message = error_message
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def create_offer(db: Session, offer: schemas.OfferCreate, run_id: int | None = None):
     db_offer = models.Offer(
         id=offer.id,
         fiat=offer.fiat,
@@ -24,6 +48,7 @@ def create_offer(db: Session, offer: schemas.OfferCreate):
         max_limit=offer.max_limit,
         trade_type=offer.trade_type,
         advertiser=offer.advertiser,
+        run_id=run_id,
     )
 
     db.add(db_offer)
