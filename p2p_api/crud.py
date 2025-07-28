@@ -1,5 +1,6 @@
 from sqlalchemy.exc import IntegrityError
 import logging
+from typing import Optional
 from sqlalchemy.orm import Session
 
 from . import auth, database as models, schemas
@@ -24,7 +25,7 @@ def create_run(db: Session, exchange: str) -> models.Run:
     return run
 
 
-def finalize_run(db: Session, run_id: int, total_offers: int | None = None, error_message: str | None = None):
+def finalize_run(db: Session, run_id: int, total_offers: Optional[int] = None, error_message: Optional[str] = None):
     run = db.query(models.Run).filter(models.Run.id == run_id).first()
     if not run:
         return None
@@ -37,7 +38,7 @@ def finalize_run(db: Session, run_id: int, total_offers: int | None = None, erro
     return run
 
 
-def create_offer(db: Session, offer: schemas.OfferCreate, run_id: int | None = None):
+def create_offer(db: Session, offer: schemas.OfferCreate, run_id: Optional[int] = None):
     db_offer = models.Offer(
         id=offer.id,
         fiat=offer.fiat,
