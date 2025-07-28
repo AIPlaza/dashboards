@@ -1,7 +1,7 @@
 from typing import List
 
 from pydantic import BaseModel, ConfigDict
-
+import datetime
 
 class OfferBase(BaseModel):
     fiat: str
@@ -22,6 +22,20 @@ class OfferCreate(OfferBase):
 class Offer(OfferBase):
     id: str
 
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RunBase(BaseModel):
+    exchange: str
+    fetched_at: datetime.datetime | None = None
+    total_offers: int | None = None
+    error_message: str | None = None
+
+class RunCreate(RunBase):
+    pass
+
+class Run(RunBase):
+    id: int
     model_config = ConfigDict(from_attributes=True)
 
 

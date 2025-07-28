@@ -1,7 +1,7 @@
 import logging
 import uuid
 from contextlib import asynccontextmanager
-from typing import List, Literal
+from typing import List, Literal, Dict
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
@@ -127,7 +127,7 @@ async def read_root():
 
 @app.get(
     "/api/v1/binance/offers",
-    response_model=List[schemas.Offer],
+    response_model=Dict[str, str],
     dependencies=[Depends(get_api_key)],
     summary="Fetch Binance P2P Offers",
     description="Retrieves a list of active P2P offers from Binance, with robust filtering and pagination.",
@@ -143,21 +143,27 @@ async def get_binance_p2p_offers(
     rows: int = Query(20, ge=1, le=100, description="Number of results per page (1-100)."),
     db: Session = Depends(get_db),
 ):
+    run = None
+    created_offers_count = 0  # Initialize to 0
     try:
+        run = crud.create_run(db=db, exchange="binance")
         offers_data = get_binance_offers(
             fiat=fiat, asset=asset, tradeType=trade_type, page=page, rows=rows
         )
+        created_offers_count = services.process_binance_offers(
+            db=db,
+            offers_data=offers_data,
+            fiat=fiat,
+            asset=asset,
+            trade_type=trade_type,
+            run_id=run.id,
+        )
+        crud.finalize_run(db=db, run_id=run.id, total_offers=created_offers_count)
+        return {"message": f"Successfully processed {created_offers_count} offers for run {run.id}"}
     except Exception as e:
-        # As per the audit, wrap scraper exceptions.
-        raise ScraperError(f"An unexpected error occurred with the Binance scraper: {str(e)}")
-
-    return services.process_binance_offers(
-        db=db,
-        offers_data=offers_data,
-        fiat=fiat,
-        asset=asset,
-        trade_type=trade_type,
-    )
+        if run:
+            crud.finalize_run(db=db, run_id=run.id, error_message=str(e))
+        raise ScraperError(f"An unexpected error occurred with the Binance scraper: {e}")
 
 @app.get(
     "/api/v1/binance/pairs",
@@ -177,5 +183,3 @@ async def get_bybit_p2p_offers():
     raise HTTPException(
         status_code=501, detail="Bybit integration is not yet implemented."
     )
-
-

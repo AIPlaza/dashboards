@@ -15,6 +15,17 @@ router = APIRouter(
     responses={401: {"description": "User not authenticated"}},
 )
 
+@router.get("/monitoring/summary", tags=["Admin Monitoring"])
+async def monitoring_summary(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_active_user),
+):
+    """
+    Returns summary stats of ingestion runs and offer activity in the last 24h.
+    Requires admin authentication (JWT).
+    """
+    return services.get_run_stats(db)
+
 
 @router.post("/token", response_model=schemas.Token, tags=["Admin Authentication"])
 async def login_for_access_token(

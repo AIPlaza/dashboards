@@ -2,43 +2,42 @@ import datetime
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Table, create_engine, event
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Table,
+    create_engine,
+    event,
+)
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-
-
-
 
 Base = declarative_base()
 engine = None
 SessionLocal = None
 
+
 def init_db(database_url: str):
     """Initialize database engine and session factory from environment variable."""
     global engine, SessionLocal
 
-    # Read the database URL from environment variable
-    
-
     if not database_url:
-        # Handle the case where the environment variable is not set (e.g., raise an error or log a warning)
-        # For production on Render, this variable *should* be set.
         raise ValueError("DATABASE_URL environment variable not set.")
 
-    # Configure engine based on database type
     if "sqlite" in database_url:
         engine = create_engine(
             database_url,
-            connect_args={
-                "check_same_thread": False,
-                "timeout": 30,
-            },
+            connect_args={"check_same_thread": False, "timeout": 30},
             pool_pre_ping=True,
             pool_recycle=300,
-            echo=False,  # Set to True for debugging
+            echo=False,
         )
     else:
-        # PostgreSQL or other databases
         engine = create_engine(
             database_url,
             pool_pre_ping=True,
@@ -50,11 +49,10 @@ def init_db(database_url: str):
         autocommit=False,
         autoflush=False,
         bind=engine,
-        expire_on_commit=False,  # Prevent issues with accessing objects after commit
+        expire_on_commit=False,
     )
 
     return engine, SessionLocal
-
 
 
 # Association Table for Offer and PaymentMethod
@@ -71,6 +69,18 @@ offer_payment_methods = Table(
 )
 
 
+class Run(Base):
+    __tablename__ = "runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    exchange = Column(String, nullable=False)
+    fetched_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+    total_offers = Column(Integer)
+    error_message = Column(String, nullable=True)
+
+    offers = relationship("Offer", back_populates="run", lazy="selectin")
+
+
 class Offer(Base):
     __tablename__ = "offers"
 
@@ -84,12 +94,15 @@ class Offer(Base):
     max_limit = Column(Numeric(20, 8))
     trade_type = Column(String)
     advertiser = Column(String)
+    run_id = Column(Integer, ForeignKey("runs.id"), nullable=True)
 
-    # Many-to-Many relationship with PaymentMethod
+    run = relationship("Run", back_populates="offers")
     payment_methods = relationship(
-        "PaymentMethod", secondary=offer_payment_methods, back_populates="offers"
- , lazy="selectin"  # Optimize loading
- )
+        "PaymentMethod",
+        secondary=offer_payment_methods,
+        back_populates="offers",
+        lazy="selectin",
+    )
 
     def __repr__(self):
         return f"<Offer(fiat='{self.fiat}', asset='{self.asset}', price={self.price})>"
