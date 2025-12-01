@@ -1,31 +1,28 @@
-# P2P Dashboard API
+# P2P Data Ingestion Worker
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A powerful and flexible API for scraping P2P trading data from cryptocurrency exchanges.
+A powerful and flexible worker for scraping P2P trading data from cryptocurrency exchanges and loading it into a PostgreSQL database.
 
 ## Table of Contents
 
 - [Features](#features)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
-  - [Local Installation](#local-installation)
-  - [Docker Usage](#docker-usage)
-- [Usage](#usage)
-- [API Endpoints](#api-endpoints)
-  - [Get Binance Offers](#get-binance-offers)
-  - [Get Binance Pairs](#get-binance-pairs)
-  - [Get Bybit Offers](#get-bybit-offers)
+  - [Setting up the .env file](#setting-up-the-env-file)
+  - [Easy Deployment with Docker Compose](#easy-deployment-with-docker-compose)
+  - [Alternative Deployment (Without Docker)](#alternative-deployment-without-docker)
+- [Logging and Error Handling](#logging-and-error-handling)
 - [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
 ## Features
 
-- **Real-time Data:** Scrape P2P trading data from Binance and other exchanges in real-time.
-- **Flexible Queries:** Filter offers by fiat currency, crypto asset, trade type, and more.
-- **Extensible:** Easily add new exchanges and trading pairs.
-- **Secure:** Protect your API with API key authentication.
+- **Automated Data Extraction:** Scrapes P2P trading data from Binance and other exchanges.
+- **PostgreSQL Integration:** Loads the extracted data into a PostgreSQL database.
+- **Scalable:** Designed for horizontal scalability to handle large volumes of data.
+- **Reliable:** Implements error recovery mechanisms to ensure data integrity.
 - **Containerized Deployment:** Ready for deployment using Docker for consistent environments.
 
 ## Getting Started
@@ -34,149 +31,130 @@ Follow these instructions to get a copy of the project up and running on your lo
 
 ### Prerequisites
 
-- Python 3.10+ (for local development)
+- Python 3.10+
 - PostgreSQL
-- Docker (for containerized deployment)
+- Docker
+- Docker Compose
 
-### Local Installation
+Before you begin, make sure you have the following:
 
-1. **Clone the repository:**
+1.  **Install Docker:** Follow the instructions on the [Docker website](https://docs.docker.com/get-docker/) to install Docker on your system.
+2.  **Install Docker Compose:** Docker Compose is a tool for defining and running multi-container Docker applications. Follow the instructions on the [Docker website](https://docs.docker.com/compose/install/) to install Docker Compose on your system.
 
-   ```bash
-   git clone https://github.com/your-username/P2P-Dashboard.git
-   cd P2P-Dashboard
-   ```
+### Setting up the .env file
 
-2. **Create and activate a virtual environment:**
+The `.env` file is used to store sensitive information, such as your PostgreSQL credentials. To set up the `.env` file, follow these steps:
 
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate # On Windows, use `.venv\Scripts\activate`
-   ```
+1.  Copy the `.env.template` file to `.env`:
 
-3. **Install Dependencies:**
+    ```bash
+    cp .env.template .env
+    ```
+2.  Update the `.env` file with your PostgreSQL credentials. The `.env` file should contain the following variables:
 
-   - **For Production:**
-     Install only the packages required to run the application:
-     ```bash
-     pip install -r requirements.txt
-     ```
+    ```
+    DATABASE_URL=postgresql://p2p_dashboard_user:4scr5XwawprE0cHtx7TJe6w8F7e994q5@dpg-d1omv9ffte5s73bhth20-a.oregon-postgres.render.com/p2p_dashboard
+    DB_USER=p2p_dashboard_user
+    DB_PASSWORD=4scr5XwawprE0cHtx7TJe6w8F7e994q5
+    ```
 
-   - **For Development & Testing:**
-     This command installs all production packages plus development tools like `pytest`.
-     ```bash
-     pip install -r requirements-dev.txt
-     ```
+    **Note:** This is the ONLY information that needs to be in the `.env` file.
 
-4. **Set up PostgreSQL Database (for production-like setup only):**
+### .gitignore
 
-   - Ensure you have a running PostgreSQL server and create a database.
-   - Copy the `.env.example` file to `.env` and update the `DATABASE_URL` with your database connection string.
+The `.gitignore` file is used to prevent sensitive information from being committed to the repository. Make sure that the `.gitignore` file includes the `.env` file to prevent your PostgreSQL credentials from being exposed.
 
-5. **Generate an API key:**
+### Easy Deployment with Docker Compose
 
-   - Run the following command to generate a secure API key:
+This project is designed for easy deployment using Docker Compose. With just a few commands, you can have the entire system up and running, including the PostgreSQL database, Redis cache, data ingestion worker, Prometheus monitoring, and Grafana dashboards.
 
-     ```bash
-     python -c "import secrets; print(secrets.token_hex(32))"
-     ```
+1.  **Clone the repository:**
 
-   - Add the generated key to your `.env` file as `API_KEY`.
+    ```bash
+    git clone https://github.com/your-username/P2P-Dashboard.git
+    cd P2P-Dashboard
+    ```
 
-6. **Troubleshooting Installation (Windows):**
+2.  **Set up the .env file:**
 
-   The `psycopg2-binary` package is required for PostgreSQL support. Sometimes, its installation can fail on Windows if `pip` cannot find a pre-compiled binary for your system. If you see an error related to `Microsoft Visual C++` or `pg_config`, try the following solutions in order:
+    Follow the instructions in the [Setting up the .env file](#setting-up-the-env-file) section to create and configure the `.env` file.
 
-   - **Solution 1 (Update Pip):** Ensure you have the latest version of pip, which can help it find the correct package version.
-     ```bash
-     python -m pip install --upgrade pip
-     pip install -r requirements.txt
-     ```
+3.  **Run the application:**
 
-   - **Solution 2 (Install Build Tools):** If updating pip doesn't work, you will need to install the necessary build tools.
-     1. Download and install the Visual Studio Build Tools. During installation, select the **"C++ build tools"** workload.
-     2. Download and install PostgreSQL for Windows.
-     3. After installation, try installing the project dependencies again.
+    ```bash
+    docker-compose up -d
+    ```
 
-### Docker Usage
+    This command will start all the services defined in the `docker-compose.yml` file.
 
-Alternatively, you can build and run the application using Docker for a containerized environment.
+4.  **Access the application:**
 
-1. **Build the Docker image:**
+    The Grafana dashboard will be available at `http://127.0.0.1:3000`.
 
-   ```bash
-   docker build -t p2p-dashboard-api .
-   ```
+### Alternative Deployment (Without Docker)
 
-2. **Run the Docker container:**
+If you prefer not to use Docker, you can deploy the application directly on your system.
 
-   Ensure your `.env` file is correctly configured with your `DATABASE_URL` and `API_KEY`.
+1.  **Install Python 3.10+ and PostgreSQL:** Make sure you have Python 3.10 or higher and PostgreSQL installed on your system.
+2.  **Create a virtual environment:**
 
-   ```bash
-   docker run -d --name p2p-dashboard -p 8000:8000 --env-file ./.env p2p-dashboard-api
-   ```
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate # On Windows, use `.venv\Scripts\activate`
+    ```
 
-   - `-d`: Runs the container in detached mode (in the background).
-   - `--name p2p-dashboard`: Assigns a name to your container for easy reference.
-   - `-p 8000:8000`: Maps port 8000 on your host to port 8000 in the container.
-   - `--env-file ./.env`: Mounts your local `.env` file into the container to provide environment variables.
+3.  **Install Dependencies:**
 
-## Usage
+    **Important:** After following the troubleshooting steps for the `pydantic-core` installation issue, make sure to install the dependencies again:
 
-To run the application locally (after local installation):
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-```bash
-uvicorn p2p_api.main:app --reload
-```
+4.  **Set up PostgreSQL Database:**
 
-If running via Docker, the application will start automatically when the container runs.
+    - Ensure you have a running PostgreSQL server and create a database.
+    - Copy the `.env.example` file to `.env` and update the `DATABASE_URL` with your database connection string.
+    - Execute the SQL code in the `devlog.md` file to create the database schema and populate the dimension tables.
 
-The API will be available at `http://127.0.0.1:8000`.
+5.  **Run the application:**
 
-You can view the auto-generated interactive API documentation at `http://127.0.0.1:8000/docs`.
+    ```bash
+    uvicorn p2p_api.main:app --reload
+    ```
 
-## API Endpoints (Manual Examples)
+6.  **Run the scheduler:**
 
-### Get Binance Offers
+    Open a new terminal and run the following command:
 
-- **Endpoint:** `/api/v1/binance/offers`
-- **Method:** `GET`
-- **Description:** Get a list of P2P offers from Binance.
-- **Query Parameters:**
-  - `fiat` (string, required): Fiat currency (e.g., `VES`, `USD`).
-  - `asset` (string, required): Crypto asset (e.g., `USDT`, `BTC`).
-  - `trade_type` (string, required): Trade type (`BUY` or `SELL`).
-  - `page` (integer, optional): Page number (default: `1`).
-  - `rows` (integer, optional): Number of rows per page (default: `20`).
-- **Headers:**
-  - `X-API-Key` (string, required): Your API key.
-- **Example:**
+    ```bash
+    python worker/extractor.py
+    ```
 
-  ```bash
-  curl -X GET "http://127.0.0.1:8000/api/v1/binance/offers?fiat=VES&asset=USDT&trade_type=BUY" -H "X-API-Key: your-api-key"
-  ```
+### Troubleshooting Deployment Issues
 
-### Get Binance Pairs
+If you encounter a `net/http: TLS handshake timeout` error during deployment, this indicates a network issue. Try the following:
 
-- **Endpoint:** `/api/v1/binance/pairs`
-- **Method:** `GET`
-- **Description:** Get a list of available trading pairs from Binance.
-- **Headers:**
-  - `X-API-Key` (string, required): Your API key.
-- **Example:**
+*   Check your internet connection.
+*   Try again later, as the Docker registry may be temporarily unavailable.
 
-  ```bash
-  curl -X GET "http://127.0.0.1:8000/api/v1/binance/pairs" -H "X-API-Key: your-api-key"
-  ```
+If you encounter an error related to `pydantic-core` during dependency installation, it indicates that Rust and Cargo are required. To resolve this, follow these steps:
 
-### Get Bybit Offers
+1.  **Install Rust and Cargo:** Follow the instructions on the [Rust website](https://rustup.rs/) to install Rust and Cargo on your system.
+2.  **Add Cargo to PATH:** Ensure that the `cargo` executable is in your system's PATH environment variable.
+3.  **Try installing the dependencies again:**
 
-- **Endpoint:** `/api/v1/bybit/offers`
-- **Method:** `GET`
-- **Description:** Get a list of P2P offers from Bybit.
-- **Note:** This endpoint is not yet implemented.
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-## Testing
+### Logging and Error Handling
+
+The application uses the `logging` module to log messages to a file called `worker.log`. This file can be used to troubleshoot any issues that may occur.
+
+The application also implements a circuit breaker to prevent cascading failures. If there are too many consecutive errors, the circuit breaker will be tripped and the application will stop trying to extract data.
+
+### Testing
 
 To run the tests, use the following command:
 

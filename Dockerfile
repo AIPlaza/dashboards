@@ -1,8 +1,13 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim-buster@sha256:37aa274c2d001f09b14828450d903c55f821c90f225fdfdd80c5180fcca77b3f
+FROM python:3.11-slim-bullseye
 
 # Set the working directory in the container
 WORKDIR /app
+
+# Install Rust and Cargo
+RUN apt-get update && apt-get install -y curl
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Copy the requirements file into the container at /app
 COPY requirements.txt .
