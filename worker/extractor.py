@@ -27,7 +27,7 @@ class BinanceP2PExtractor:
     def __init__(self):
         self.base_url = settings.binance_base_url
         self.search_url = f"{self.base_url}{settings.binance_search_endpoint}"
-        self.pairs_url = f"{self.base_url}{settings.binance_pairs_endpoint}"
+
 
         # Create session with retry strategy
         self.session = self._create_session()
@@ -50,7 +50,7 @@ class BinanceP2PExtractor:
         return session
 
     def _get_headers(self) -> Dict[str, str]:
-        """Get default headers for Binance requests."""
+        """Returns headers that mimic a real browser request."""
         return {
             "Accept": "*/*",
             "Accept-Encoding": "gzip, deflate, br",
@@ -59,10 +59,14 @@ class BinanceP2PExtractor:
             "Connection": "keep-alive",
             "Content-Type": "application/json",
             "Origin": "https://p2p.binance.com",
+            "Referer": "https://p2p.binance.com/", # CRITICAL: Binance requires this
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
+                "Chrome/131.0.0.0 Safari/537.36" # Updated to Dec 2024
             ),
         }
 
@@ -75,29 +79,15 @@ class BinanceP2PExtractor:
         """
         logger.info("Fetching all trading pairs...")
 
-        # Rate limit
-        rate_limiter.acquire()
+        logger.info("Generating trading pairs from p2p_config.json...")
 
-        try:
-            response = self.session.post(
-                self.pairs_url,
-                json={},
-                headers=self._get_headers(),
-                timeout=settings.request_timeout_seconds
-            )
-            response.raise_for_status()
-            data = response.json()
+        pairs = []
+        configured_fiats = settings.p2p_config["FIATS"]
+        cryptos_by_fiat = settings.p2p_config["CRYPTOS_BY_FIAT"]
 
-            if data.get("code") != "000000":
-                logger.error(f"Failed to fetch pairs: {data.get('message')}")
-                return []
-
-            pairs = []
-            for item in data.get("data", []):
-                fiat = item.get("fiatUnit")
-                assets = item.get("assetList", [])
-
-                for asset in assets:
+        for fiat in configured_fiats:
+            if fiat in cryptos_by_fiat:
+                for asset in cryptos_by_fiat[fiat]:
                     pairs.append({
                         "fiat": fiat,
                         "asset": asset,
@@ -108,13 +98,11 @@ class BinanceP2PExtractor:
                         "asset": asset,
                         "trade_type": "SELL"
                     })
+            else:
+                logger.warning(f"No crypto assets configured for fiat: {fiat}. Skipping.")
 
-            logger.info(f"Found {len(pairs)} trading pairs")
-            return pairs
-
-        except Exception as e:
-            logger.error(f"Error fetching trading pairs: {e}")
-            return []
+        logger.info(f"Generated {len(pairs)} trading pairs from configuration.")
+        return pairs
 
     def extract_pair_offers(
         self,
@@ -144,15 +132,25 @@ class BinanceP2PExtractor:
 
             payload = {
                 "page": page,
-                "rows": settings.max_pages_per_pair,
+                "rows": settings.binance_p2p_until_page,
                 "tradeType": trade_type,
                 "asset": asset,
                 "fiat": fiat,
                 "publisherType": None,
                 "payTypes": [],
-                "proMerchantAds": False
+                "proMerchantAds": False,
+                "countries": [],
+                "shieldMerchantAds": False,
+                "filterType": "all",
+                "periods": [],
+                "additionalKycVerifyFilter": 0,
+                "classifies": ["mass", "profession", "fiat_trade"],
+                "tradedWith": False,
+                "followed": False
             }
 
+            logger.info(f"Binance API request to {self.search_url}")
+            logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
             try:
                 response = self.session.post(
                     self.search_url,
@@ -160,6 +158,8 @@ class BinanceP2PExtractor:
                     json=payload,
                     timeout=settings.request_timeout_seconds
                 )
+                logger.info(f"Response status: {response.status_code}")
+                logger.debug(f"Full Response body: {response.text}")
                 response.raise_for_status()
                 data = response.json()
 
@@ -183,10 +183,10 @@ class BinanceP2PExtractor:
 
                 page += 1
 
-                if page > settings.max_pages_per_pair:
+                if page > settings.binance_p2p_until_page:
                     logger.warning(
                         f"Reached max pages per pair "
-                        f"({settings.max_pages_per_pair}) for "
+                        f"({settings.binance_p2p_until_page}) for "
                         f"{fiat}/{asset}/{trade_type}"
                     )
                     break
@@ -231,13 +231,28 @@ class BinanceP2PExtractor:
 
             # Extract payment methods
             payment_methods = [
-                method.get("payType") for method in adv.get("tradeMethods", [])
+                {
+                    "identifier": str(method.get("identifier", "")),
+                    "tradeMethodName": str(method.get("tradeMethodName", ""))
+                }
+                for method in adv.get("tradeMethods", [])
             ]
+
+            # Get advNo, which will be the external ID
+            offer_id = adv.get("advNo")
+            if not offer_id:
+                logger.warning("Skipping offer due to missing 'advNo'.")
+                return None
 
             # Create parsed offer
             parsed_offer = {
-                "offer_external_id": str(uuid.uuid4()),
-                "advertiser_nickname": advertiser.get("nickName"),
+                "id": offer_id, # Use advNo from Binance API as the external ID
+                "advertiser": { # Nested advertiser dictionary
+                    "id": advertiser.get("userNo"), # Assuming userNo is the ID
+                    "nickname": advertiser.get("nickName"),
+                    "completion_rate": advertiser.get("completionRate", 0),
+                    "total_orders": advertiser.get("totalOrderNum", 0),
+                },
                 "price": price,
                 "available_amount": available_amount,
                 "min_limit": min_limit,

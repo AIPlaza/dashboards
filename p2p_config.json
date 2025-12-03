@@ -1,0 +1,23 @@
+{
+  "FIATS": ["ARS", "COP", "VES", "USD"],
+  "CRYPTOS_BY_FIAT": {
+    "ARS": ["USDT", "BTC", "ETH", "BNB"],
+    "COP": ["USDT", "BTC", "ETH"],
+    "VES": ["USDT", "BTC"],
+    "USD": ["USDT", "BTC", "ETH", "BNB", "USDC"]
+  },
+  "PAYMENT_METHODS_BY_FIAT": {
+    "ARS": ["Naranja X", "Mercadopago", "Lemon", "Belo", "Uala"],
+    "COP": ["Nequi", "Daviplata", "Bancolombia"],
+    "VES": ["PagoMovil", "Bank Transfer"],
+    "USD": ["Bank Transfer", "Wise", "Revolut"]
+  },
+  "DEFAULTS": {
+    "BINANCE_P2P_TRADE_METHOD": "sell",
+    "BINANCE_P2P_MIN_OPERATION_LIMIT": 5000,
+    "BINANCE_P2P_MAX_OPERATION_LIMIT": 10000,
+    "BINANCE_P2P_UNTIL_PAGE": 5,
+    "DISABLE_NOTIFICATIONS": true,
+    "CRON_TIME": "15,45 * * * * *"
+  }
+}

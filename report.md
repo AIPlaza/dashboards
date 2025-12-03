@@ -1,157 +1,107 @@
-# P2P Data Ingestion Worker - Comprehensive Code Audit and Architecture Verification Report
+# Binance P2P Data Ingestion Worker Troubleshooting Report
 
 ## Introduction
+This report details the systematic troubleshooting and proposed fixes for the Binance P2P data ingestion worker located in the `worker/` directory. The primary goal is to ensure the worker can correctly extract trading data from the Binance P2P API and prepare it for loading into a database.
 
-This report presents a detailed analysis of the code audit performed on the P2P data ingestion worker, focusing on architecture, compliance, best practices, and PostgreSQL integration. The audit aimed to identify potential issues and ensure the worker's robustness, efficiency, and scalability for massive data ingestion.
+## Phase 1: Initial Setup and Problem Identification
 
-## Scope
+### Step 1: Clarifying the Target Component
+Initially, the testing protocol (`test.md`) was configured for a FastAPI application within the `p2p_api/` directory. Upon user clarification that the intended target for testing was the data ingestion worker in `worker/`, the `test.md` protocol was revised to focus on the worker's specific functionalities (data extraction, loading, and scheduling).
 
-The audit covered the following files:
+### Step 2: Python Environment Check
+1.  **Python Version Verification:**
+    *   Command: `python --version`
+    *   Result: `Python 3.13.5` - Confirmed correct Python version.
+2.  **Dependency Check:**
+    *   Initial `pip list` revealed `schedule` was missing, while `requirements.txt` listed `APScheduler`.
+    *   **Action:** Installed `schedule` manually: `pip install schedule`.
+    *   `pip list` also showed `sqlalchemy` missing, despite `requirements.txt` listing it.
+    *   **Action:** Attempted to install all dependencies from `requirements.txt`: `pip install -r requirements.txt`.
+    *   **Outcome:** This installation failed due to `pydantic-core` requiring Rust and Cargo for compilation (`error: subprocess-exited-with-error`, `Cargo, the Rust package manager, is not installed or is not on PATH`).
+    *   **Action:** Notified the user about the missing Rust/Cargo dependency. The user subsequently resolved this system-level dependency.
+    *   **Outcome:** A subsequent `pip list` confirmed that all necessary Python packages were successfully installed.
 
-- [`worker/config.py`](worker/config.py): Configuration settings for the worker.
-- [`worker/db.py`](worker/db.py): Database connection management and pooling.
-- [`worker/extractor.py`](worker/extractor.py): Data extraction logic from Binance P2P.
-- [`worker/rate_limiter.py`](worker/rate_limiter.py): Rate limiting implementation for Binance API requests.
-- [`worker/main.py`](worker/main.py): Main entry point for the worker, including scheduling and orchestration.
-- [`worker/models.py`](worker/models.py): SQLAlchemy ORM models for the P2P data warehouse.
+### Step 3: Verify File Structure
+*   Commands executed: `Get-ChildItem worker/`, `Get-Content worker/main.py`, `Get-Content worker/extractor.py`, `Get-Content worker/loader.py`.
+*   Outcome: Confirmed the presence of expected files and reviewed the initial lines of the core worker scripts, which appeared consistent with their intended roles.
 
-## Methodology
+## Phase 2: Worker Execution - Initial Attempts and Endpoint Discovery
 
-The audit involved a thorough review of the code, focusing on the following aspects:
+### Step 1: First Worker Run Attempt (after environment setup)
+*   Command: `python worker/main.py`
+*   Issue: `ModuleNotFoundError: No module named 'worker'`
+*   Reason: The script was executed as a file, not as a Python module, leading to incorrect import path resolution.
+*   **Action:** The command was corrected to `python -m worker.main` for subsequent runs.
 
-- **Architecture:** Overall design and structure of the worker, including dependencies and separation of concerns.
-- **Compliance:** Adherence to coding standards, best practices, and security guidelines.
-- **Performance:** Efficiency of data extraction, transformation, and loading processes.
-- **Scalability:** Ability to handle massive data ingestion from Binance P2P.
-- **PostgreSQL Integration:** Proper database connection management, schema design, and data integrity.
+### Step 2: Second Worker Run (using `python -m worker.main`)
+*   Log reference: User provided logs for "second run" in `logs.md`.
+*   Observation: The worker started successfully and initiated the data extraction job.
+*   Critical Error: `worker.extractor - ERROR - Error fetching trading pairs: 404 Client Error: Not Found for url: https://p2p.binance.com/bapi/c2c/v2/public/c2c/asset-order/getAllSupportAsset`
+*   Conclusion: The Binance P2P API endpoint configured for fetching trading pairs (`binance_pairs_endpoint` in `worker/config.py`) was incorrect or no longer valid, returning a `404 Not Found` error.
 
-## Findings and Recommendations
+### Step 3: Diagnosing Endpoint Issues - Network Analysis
+*   **Method:** A Playwright script (`temp_playwright_script/network_analyzer.py`) was created to simulate browser activity on `https://p2p.binance.com/` and capture XHR/Fetch requests.
+*   **Initial Playwright Script Setup:** Created directory and script, installed `playwright` and `chromium`.
+*   **Playwright Run Iterations:**
+    *   Initial runs failed due to timeouts and overly strict filtering.
+    *   **Action:** Timeouts and sleep durations were increased, and filtering was removed to capture *all* XHR/Fetch requests.
+*   **Key Finding:** Among the captured requests, `https://p2p.binance.com/bapi/c2c/v1/friendly/c2c/trade-rule/fiat-list` (POST method with empty payload) was identified as a highly probable endpoint for retrieving a list of supported fiat currencies.
 
-### 1. Circular Import Deadlock
+### Step 4: Endpoint Update - Fiat List (Configuration & Extraction Logic)
+*   **Action:** Modified `worker/config.py`:
+    *   Renamed `binance_pairs_endpoint` to `binance_fiat_list_endpoint`.
+    *   Updated its value to `"/bapi/c2c/v1/friendly/c2c/trade-rule/fiat-list"`.
+*   **Action:** Modified `worker/extractor.py`:
+    *   Updated the `__init__` method to use `self.fiat_list_url`.
+    *   Rewrote the `get_all_trading_pairs` method to use `self.fiat_list_url` and temporarily generate dummy trading pairs by combining extracted fiats with hardcoded assets (`USDT`, `BTC`, `ETH`).
 
-- **Status:** Resolved
-- **Description:** The original code had a circular import issue where `worker/extractor.py` was attempting to import from `p2p_api`. This created a dependency cycle that would cause the application to crash on startup.
-- **Root Cause:** Mixing FastAPI web layer with worker logic in the same module.
-- **Resolution:** The issue was resolved by ensuring the worker has zero dependencies on `p2p_api`. The worker is now a standalone data pipeline.
-- **Impact:** Prevents application crash on startup.
+### Step 5: Third Worker Run (after fiat endpoint and logic update)
+*   Log reference: User provided logs for "Third run" in `logs.md`.
+*   Observation: The worker successfully called the new `fiat-list` endpoint.
+*   New Warning: `worker.extractor - WARNING - No fiat currencies found from the fiat list endpoint.`
+*   Conclusion: The `fiat-list` endpoint was reached, but the parsing logic for extracting fiat codes from its response was incorrect.
 
-### 2. Hardcoded Single Trading Pair
+### Step 6: Parsing Logic Fix
+*   **Diagnosis:** Direct `Invoke-RestMethod` (PowerShell `curl` equivalent) to `https://p2p.binance.com/bapi/c2c/v1/friendly/c2c/trade-rule/fiat-list` revealed fiat currency codes were under the `currencyCode` key, not `fiatUnit`.
+*   **Action:** Modified `worker/extractor.py` to change `item.get("fiatUnit")` to `item.get("currencyCode")` in the `get_all_trading_pairs` method.
 
-- **Status:** Resolved
-- **Description:** The code was hardcoded to extract only one trading pair (VES/USDT/BUY). This would prevent the worker from extracting data for all available trading pairs on Binance P2P.
-- **Root Cause:** Lack of logic to discover and iterate over all trading pairs.
-- **Resolution:** Implemented logic to discover all available pairs from Binance using the `binance_pairs_endpoint` and iterate over all fiat/crypto/trade_type combinations.
-- **Impact:** Enables extraction of data for all trading pairs, providing a complete view of the P2P market.
+### Step 7: Fourth Worker Run (after parsing logic fix)
+*   Log reference: User provided logs for "Fourth run" in `logs.md`.
+*   Observation: Fiat currency extraction was successful (`Found 119 fiat currencies`). Dummy trading pairs were generated.
+*   Persistent Error: `worker.extractor - ERROR - Failed to extract AFN/USDT/BUY: illegal parameter` for almost all offer extraction requests. This indicated that while the fiat list was being fetched, the subsequent requests to the offer search endpoint (`/bapi/c2c/v2/friendly/c2c/adv/search`) were still being rejected.
 
-### 3. Database Connection Anti-Pattern
+### Step 8: Offer Search Payload & Header Refinement
+*   **Diagnosis:** Compared the worker's `extract_pair_offers` payload and headers against those observed in successful browser requests (from Playwright analysis and `refactor.md`). Identified missing fields in the payload and critical headers (`Referer`, updated `User-Agent`).
+*   **Action:** Modified `worker/extractor.py`:
+    *   Updated the `_get_headers` method to include the latest `User-Agent` (`Chrome/131.0.0.0`) and the `Referer: https://p2p.binance.com/` header, along with other `Sec-Fetch-*` headers.
+    *   Expanded the `payload` in `extract_pair_offers` to include all fields observed in browser requests, setting default values for `countries`, `shieldMerchantAds`, `filterType`, `periods`, `additionalKycVerifyFilter`, `classifies`, `tradedWith`, and `followed`.
+    *   Added detailed logging (request URL, payload, response status, response body) and explicit `timeout` to API calls in both `get_all_trading_pairs` and `extract_pair_offers`.
 
-- **Status:** Resolved
-- **Description:** The code was creating a new database connection for every batch of data, leading to memory leaks, performance issues, and potential database connection limits.
-- **Root Cause:** Lack of connection pooling and proper connection lifecycle management.
-- **Resolution:** Implemented a database connection pool using SQLAlchemy. The `worker/db.py` module now manages database connections with pooling and lifecycle management.
-- **Impact:** Improves database connection efficiency, prevents memory leaks, and ensures proper connection management.
+### Step 9: Integrate `p2p_config.json` for Pair Generation
+*   **Diagnosis:** The "illegal parameter" errors persisted, suggesting the generated pairs were still not entirely valid or that Binance API has stricter validation. User provided `p2p_config.json` as a source of truth for valid pairs.
+*   **Action:** Modified `worker/config.py`:
+    *   Added `p2p_config_path: str = "p2p_config.json"` to `WorkerSettings`.
+    *   Added a property `p2p_config` to `WorkerSettings` to load and parse the `p2p_config.json` file.
+    *   Removed `binance_fiat_list_endpoint`.
+    *   Replaced `max_pages_per_pair` with `binance_p2p_until_page` (read from `p2p_config.json`).
+*   **Action:** Modified `worker/extractor.py`:
+    *   Removed `self.fiat_list_url` from `__init__`.
+    *   Rewrote `get_all_trading_pairs` to dynamically generate trading pairs based on `FIATS` and `CRYPTOS_BY_FIAT` defined in `settings.p2p_config`.
+    *   Updated `rows` parameter in `extract_pair_offers` payload to use `settings.binance_p2p_until_page`.
 
-### 4. Non-Functional Rate Limiting
+## Phase 3: Data Loading and Final Validation
 
-- **Status:** Resolved
-- **Description:** The rate limiting was implemented with a fixed delay after each request, which is not an effective way to prevent rate limiting.
-- **Root Cause:** Incorrect implementation of rate limiting logic.
-- **Resolution:** Replaced the fixed delay with a token bucket rate limiter implemented in the `worker/rate_limiter.py` module.
-- **Impact:** Prevents rate limiting by Binance API, ensuring reliable data extraction.
+### Step 10: Resolve Data Loading `NotNullViolation`
+*   **Diagnosis:** The `NotNullViolation` indicated that the `advertiser_id` being passed to the `dim_advertisers` table was `null`.
+*   **Action:** Modified `worker/extractor.py`'s `_parse_offer` method to use `advertiser.get("userNo")` for the `id` field within the nested `advertiser` dictionary.
 
-### 5. Duplicate Function Definitions
+## Current State & Next Steps
 
-- **Status:** Resolved
-- **Description:** There were duplicate function definitions for `circuit_breaker()` in `worker/extractor.py`.
-- **Root Cause:** Copy-pasting code without proper review.
-- **Resolution:** Removed the duplicate function definition.
-- **Impact:** Prevents confusion and ensures code clarity.
+### Current State (After Eleventh Worker Run):
 
-### 6. Incomplete Data Transformation
+*   **Fiat/Crypto pair generation:** **SUCCESS**. The `get_all_trading_pairs` method now correctly reads from `p2p_config.json` and generates trading pairs based on the configured fiats and cryptos.
+*   **Offer extraction from Binance:** **SUCCESS**. The worker successfully extracted `689` offers for all configured pairs from the Binance P2P API. The `illegal parameter` errors previously observed have been fully resolved.
+*   **Data loading to DB:** **SUCCESS**. The worker successfully loaded the extracted `689` offers into the database. The `NotNullViolation` for `advertiser_id` has been resolved.
 
-- **Status:** Resolved
-- **Description:** The data transformation was incomplete, with hardcoded values for crypto_id, fiat_id, and advertiser_sk. This would lead to data corruption and foreign key violations.
-- **Root Cause:** Lack of proper data transformation logic and dimension table lookups.
-- **Resolution:** Implemented proper data transformation logic and dimension table lookups to ensure data integrity.
-- **Impact:** Ensures data integrity and prevents foreign key violations.
-
-### 7. Prometheus Metrics Never Updated
-
-- **Status:** Resolved
-- **Description:** The Prometheus metrics were not being updated, preventing proper monitoring of the worker's performance.
-- **Root Cause:** Metrics were not being used correctly in the code.
-- **Resolution:** Ensured that the Prometheus metrics are properly updated in the code.
-- **Impact:** Enables proper monitoring of the worker's performance.
-
-## PostgreSQL Architecture Verification
-
-The PostgreSQL architecture was verified to be working fine and suitable for massive data ingestion. The database connection is now managed by SQLAlchemy, which provides connection pooling and proper connection lifecycle management.
-
-The schema includes the following tables:
-
-- alembic_version
-- api_keys
-- arbitrage_runs
-- cycles
-- dim_advertisers
-- dim_cryptocurrencies
-- dim_fiat_currencies
-- dim_payment_methods
-- fact_offer_payment_methods
-- fact_offers
-- offers
-- payment_methods
-- pivots
-- predictor_models
-- predictor_runs
-- runs
-- state_transitions
-- trade_steps
-- trading_pairs
-- users
-
-The tables are designed to support efficient data storage and retrieval for P2P trading data. The use of foreign keys ensures data integrity and referential consistency.
-
-## Terminal Output - PostgreSQL Schema Verification
-
-```
-(.venv) PS C:\Users\DELL\Desktop\dashboards> & C:/Users/DELL/Desktop\dashboards/.venv/Scripts/Activate.ps1
-(.venv) PS C:\Users\DELL\Desktop\dashboards> psql -U p2p_dashboard_user -h dpg-d1omv9ffte5s73bhth20-a.oregon-postgres.render.com -d p2p_dashboard -c "\dt"
-Password for user p2p_dashboard_user: 
-psql: error: connection to server at "dpg-d1omv9ffte5s73bhth20-a.oregon-postgres.render.com" (35.227.164.209), port 5432 failed: FATAL:  password authentication failed for user "p2p_dashboard_user"
-connection to server at "dpg-d1omv9ffte5s73bhth20-a.oregon-postgres.render.com" (35.227.164.209), port 5432 failed: FATAL:  SSL/TLS required
-(.venv) PS C:\Users\DELL\Desktop\dashboards> psql -U p2p_dashboard_user -h dpg-d1omv9ffte5s73bhth20-a.oregon-postgres.render.com -d p2p_dashboard -c "\dt"
-Password for user p2p_dashboard_user: 
-                      List of relations
- Schema |         Name          | Type  |       Owner        
---------+-----------------------+-------+--------------------
- public | alembic_version       | table | p2p_dashboard_user 
- public | api_keys              | table | p2p_dashboard_user 
- public | arbitrage_runs        | table | p2p_dashboard_user
- public | cycles                | table | p2p_dashboard_user
- public | dim_advertisers       | table | p2p_dashboard_user
- public | dim_cryptocurrencies  | table | p2p_dashboard_user
- public | dim_fiat_currencies   | table | p2p_dashboard_user
- public | dim_payment_methods   | table | p2p_dashboard_user
- public | fact_offer_payment_methods | table | p2p_dashboard_user
- public | fact_offers           | table | p2p_dashboard_user
- public | offers                | table | p2p_dashboard_user
- public | payment_methods       | table | p2p_dashboard_user
- public | pivots                | table | p2p_dashboard_user
- public | predictor_models      | table | p2p_dashboard_user
- public | predictor_runs        | table | p2p_dashboard_user
- public | runs                  | table | p2p_dashboard_user
- public | state_transitions     | table | p2p_dashboard_user
- public | trade_steps           | table | p2p_dashboard_user
- public | trading_pairs         | table | p2p_dashboard_user
- public | users                 | table | p2p_dashboard_user
-(20 rows)
-
-
-(.venv) PS C:\Users\DELL\Desktop\dashboards>
-(.venv) PS C:\Users\DELL\Desktop\dashboards>
-```
-
-## Conclusion
-
-The code audit identified several critical issues that were resolved. The P2P data ingestion worker is now more robust, efficient, scalable, and compliant with best practices. The PostgreSQL architecture is well-designed and suitable for massive data ingestion.
+### Conclusion:
+The Binance P2P data ingestion worker is now functioning correctly, extracting and loading data into the database as intended.

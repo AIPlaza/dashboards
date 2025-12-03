@@ -1,12 +1,12 @@
-# Binance P2P API Endpoint Testing Protocol
+# P2P Data Ingestion Worker Testing Protocol
 
-You are a skilled DevOps engineer conducting API endpoint testing. You have access to terminal commands and need to systematically test a FastAPI application's Binance P2P integration endpoints.
+You are a skilled DevOps engineer testing the data ingestion worker. You have access to terminal commands and need to systematically test the worker's data extraction and loading functionality.
 
 ## Context
-A Python FastAPI application at `p2p_api/` has endpoints for fetching Binance P2P trading data. The REST API calls were previously failing, and code fixes have been applied. Your task is to validate the fixes work correctly.
+A Python worker at `worker/` is responsible for extracting P2P trading data from the Binance API and loading it into a database. Your task is to validate that the worker runs correctly, extracts data, and loads it as expected.
 
 ## Your Mission
-Execute a comprehensive test suite to verify the Binance P2P endpoints are functional, with detailed diagnostics at each step.
+Execute a comprehensive test suite to verify the P2P data ingestion worker is functional, with detailed diagnostics at each step.
 
 ---
 
@@ -23,195 +23,81 @@ pwd  # Confirm location
 **1.2 Check Python environment**
 ```bash
 python --version
-pip list | grep -E "fastapi|requests|uvicorn"
+pip list | findstr "schedule requests sqlalchemy"
 ```
 
 **1.3 Verify file structure**
 ```bash
-ls -la p2p_api/
-cat p2p_api/binance_scraper.py | head -50  # Check if fixes applied
-```
-
-**Expected output**: Should see updated User-Agent with Chrome 131 and Referer header
-
----
-
-### Phase 2: Server Startup
-
-**2.1 Start FastAPI server with detailed logging**
-```bash
-# Terminal 1 (keep this running)
-export LOG_LEVEL=DEBUG
-uvicorn p2p_api.main:app --reload --host 0.0.0.0 --port 8000 --log-level debug
-```
-
-**Wait for**: `Uvicorn running on http://0.0.0.0:8000`
-
-**2.2 Verify server health (in new terminal)**
-```bash
-# Terminal 2
-curl -X GET http://localhost:8000/health || echo "Health check failed"
+ls -la worker/
+cat worker/main.py | head -30  # Check worker's main logic
+cat worker/extractor.py | head -30 # Check extractor's logic
+cat worker/loader.py | head -30 # Check loader's logic
 ```
 
 ---
 
-### Phase 3: Test Binance Pairs Endpoint
+### Phase 2: Worker Execution
 
-**3.1 Test pairs endpoint**
+**2.1 Run the worker manually**
 ```bash
-curl -X GET "http://localhost:8000/api/v1/binance/pairs" \
-  -H "Accept: application/json" \
-  -w "\n\nHTTP Status: %{http_code}\nTime: %{time_total}s\n" \
-  -o pairs_response.json
+# Run the worker's main function directly
+python -m worker.main
 ```
 
-**3.2 Analyze response**
-```bash
-# Check if response is valid JSON
-cat pairs_response.json | python -m json.tool | head -30
+**Wait for**: The worker to start, run the job once, and then enter the scheduling loop. You should see log messages indicating the job is running. You will need to manually stop the execution after you see the job has run.
 
-# Count trading pairs
-cat pairs_response.json | python -c "import json, sys; data=json.load(sys.stdin); print(f'Total pairs: {len(data)}')"
-
-# Show first 3 pairs
-cat pairs_response.json | python -c "import json, sys; data=json.load(sys.stdin); [print(p) for p in data[:3]]"
-```
-
-**Expected output**: 
-- HTTP Status: 200
-- Valid JSON array
-- Multiple fiat/asset pairs like `{"fiat": "ARS", "asset": "USDT", "tradeType": "BUY"}`
-
-**If fails**: Check Terminal 1 logs for errors. Look for:
-- `❌ HTTP error: 403` → Headers issue
-- `❌ HTTP error: 429` → Rate limited
-- `❌ Request timeout` → Network issue
+**2.2 Check the logs for successful execution**
+Look for log messages like:
+- "Worker starting. Job will run every X minutes."
+- "Starting P2P data extraction job..."
+- "P2P data extraction job finished successfully."
 
 ---
 
-### Phase 4: Test Binance Offers Endpoint
+### Phase 3: Data Extraction Validation
 
-**4.1 Test ARS/USDT/BUY offers**
-```bash
-curl -X GET "http://localhost:8000/api/v1/binance/offers?fiat=ARS&asset=USDT&tradeType=BUY&page=1&rows=10" \
-  -H "Accept: application/json" \
-  -w "\n\nHTTP Status: %{http_code}\nTime: %{time_total}s\n" \
-  -o offers_ars_buy.json
-```
+**3.1 Analyze worker logs for extraction details**
+Check the logs for messages from the `extractor` module. Look for:
+- Logs indicating which pairs are being extracted.
+- Any error messages during extraction (e.g., from network requests).
 
-**4.2 Validate offer structure**
-```bash
-# Pretty print first offer
-cat offers_ars_buy.json | python -c "
-import json, sys
-data = json.load(sys.stdin)
-if data:
-    print('✅ Offers fetched successfully')
-    print(f'Total offers: {len(data)}')
-    print('\nFirst offer:')
-    print(json.dumps(data[0], indent=2))
-else:
-    print('❌ No offers returned')
-"
-```
-
-**Expected fields in each offer**:
-- `advertiser` (string)
-- `price` (string with fiat)
-- `available` (string with asset)
-- `limits` (string with range)
-- `payment_methods` (array)
-
-**4.3 Test multiple fiat pairs**
-```bash
-# Test COP (Colombian Peso)
-curl -s "http://localhost:8000/api/v1/binance/offers?fiat=COP&asset=USDT&tradeType=SELL&rows=5" | \
-  python -c "import json, sys; data=json.load(sys.stdin); print(f'COP/USDT/SELL: {len(data)} offers')"
-
-# Test VES (Venezuelan Bolívar)
-curl -s "http://localhost:8000/api/v1/binance/offers?fiat=VES&asset=USDT&tradeType=BUY&rows=5" | \
-  python -c "import json, sys; data=json.load(sys.stdin); print(f'VES/USDT/BUY: {len(data)} offers')"
-
-# Test USD (US Dollar)
-curl -s "http://localhost:8000/api/v1/binance/offers?fiat=USD&asset=BTC&tradeType=BUY&rows=5" | \
-  python -c "import json, sys; data=json.load(sys.stdin); print(f'USD/BTC/BUY: {len(data)} offers')"
+**3.2 (Optional) Add temporary debugging to the extractor**
+If the logs are not detailed enough, you can temporarily add print statements to `worker/extractor.py` to see the extracted data.
+```python
+# In worker/extractor.py, inside extract_all_offers()
+...
+print(f"Extracted {len(all_offers)} offers.")
+if all_offers:
+    print("Sample offer:", all_offers[0])
+...
 ```
 
 ---
 
-### Phase 5: Performance & Rate Limiting
+### Phase 4: Data Loading Validation
 
-**5.1 Test rapid requests (check rate limiting)**
-```bash
-echo "Testing rapid requests..."
-for i in {1..10}; do
-  curl -s -o /dev/null -w "Request $i: %{http_code} - %{time_total}s\n" \
-    "http://localhost:8000/api/v1/binance/offers?fiat=ARS&asset=USDT&tradeType=BUY&page=$i"
-  sleep 0.5
-done
-```
+**4.1 Analyze worker logs for loading details**
+Check the logs for messages from the `loader` module. Look for:
+- "Loading X offers into the database."
+- Any error messages during loading (e.g., database connection errors, constraint violations).
 
-**Expected**: All should return 200 (or 429 if Binance rate limits kick in)
-
-**5.2 Test pagination**
-```bash
-# Fetch 3 pages and count unique offers
-for page in 1 2 3; do
-  curl -s "http://localhost:8000/api/v1/binance/offers?fiat=ARS&asset=USDT&tradeType=BUY&page=$page&rows=20" \
-    -o "page_$page.json"
-done
-
-# Count total unique offers
-python -c "
-import json
-offers = []
-for i in [1,2,3]:
-    with open(f'page_{i}.json') as f:
-        offers.extend(json.load(f))
-print(f'Total offers across 3 pages: {len(offers)}')
-"
+**4.2 Verify data in the database**
+This step requires access to the database. The connection details should be in `worker/config.py` or a similar configuration file.
+```sql
+-- Example SQL query to verify data was loaded
+SELECT COUNT(*) FROM offers WHERE batch_id = '<the_batch_id_from_the_logs>';
+SELECT * FROM offers ORDER BY created_at DESC LIMIT 5;
 ```
 
 ---
 
-### Phase 6: Error Handling Tests
+### Phase 5: Scheduling Validation
 
-**6.1 Test invalid parameters**
-```bash
-# Invalid fiat
-curl -w "\nStatus: %{http_code}\n" "http://localhost:8000/api/v1/binance/offers?fiat=INVALID&asset=USDT&tradeType=BUY"
+**5.1 Observe the worker over time**
+Let the worker run for a while (e.g., for `2 * extraction_interval_minutes`).
 
-# Invalid trade type
-curl -w "\nStatus: %{http_code}\n" "http://localhost:8000/api/v1/binance/offers?fiat=ARS&asset=USDT&tradeType=INVALID"
-
-# Missing parameters
-curl -w "\nStatus: %{http_code}\n" "http://localhost:8000/api/v1/binance/offers"
-```
-
-**Expected**: Should handle gracefully with proper error messages or empty arrays
-
----
-
-### Phase 7: Log Analysis
-
-**7.1 Check server logs in Terminal 1**
-
-Look for these success indicators:
-- `✅ Binance request successful`
-- `Response status: 200`
-- `✅ Parsed X offers successfully`
-
-Look for these failure indicators:
-- `❌ HTTP error: 403` → Authentication/headers issue
-- `❌ HTTP error: 429` → Rate limit hit
-- `❌ Request timeout` → Slow network
-- `❌ Binance API error: code=XXX` → Business logic error
-
-**7.2 Extract error patterns**
-```bash
-# In Terminal 2, analyze logs if server logs to file
-grep "❌" logs/app.log | sort | uniq -c
-```
+**5.2 Check the logs for multiple job executions**
+You should see the log messages for the job starting and finishing multiple times, at the interval defined in the configuration.
 
 ---
 
@@ -220,72 +106,38 @@ grep "❌" logs/app.log | sort | uniq -c
 After completing all phases, provide a summary in this format:
 
 ```
-=== BINANCE P2P API TEST RESULTS ===
+=== P2P DATA INGESTION WORKER TEST RESULTS ===
 
 ✅ PASSED:
 - Environment setup
-- Server startup
-- Pairs endpoint (X pairs fetched)
-- Offers endpoint ARS/USDT (X offers)
+- Worker startup
+- Data extraction (X offers extracted)
+- Data loading (X offers loaded into the database)
+- Scheduling (Job ran multiple times at the correct interval)
 - [List other successes]
 
 ❌ FAILED:
-- [List failures with error codes]
+- [List failures with error messages]
 
 ⚠️  WARNINGS:
-- [List any concerning patterns]
-
-📊 PERFORMANCE:
-- Average response time: X.XXs
-- Rate limiting: [Observed/Not observed]
+- [List any concerning patterns, e.g., occasional extraction failures]
 
 🔍 RECOMMENDATIONS:
-- [Next steps based on results]
+- [Next steps based on the results, e.g., "Increase log verbosity in extractor", "Add monitoring for database load"]
 ```
-
----
-
-## Diagnostic Commands for Failures
-
-**If you see 403 errors:**
-```bash
-# Check if Binance is blocking your IP
-curl -I https://p2p.binance.com/
-curl -I https://api.binance.com/api/v3/ping
-
-# Test headers
-curl -v "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search" \
-  -H "Referer: https://p2p.binance.com/" \
-  -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
-  -d '{"page":1,"rows":10,"tradeType":"BUY","asset":"USDT","fiat":"ARS"}'
-```
-
-**If you see timeout errors:**
-```bash
-# Test network connectivity
-ping -c 3 p2p.binance.com
-traceroute p2p.binance.com
-```
-
-**If you see JSON parse errors:**
-```bash
-# Check raw response
-curl -v "http://localhost:8000/api/v1/binance/offers?fiat=ARS&asset=USDT&tradeType=BUY" 2>&1 | grep -A 20 "< HTTP"
-```
-
 ---
 
 ## Final Task
 
-After running all tests, create a file `test_report.md` with:
+After running all tests, create a file `worker_test_report.md` with:
 1. All test results
-2. Example responses from successful endpoints
+2. Example logs from a successful run
 3. Any errors encountered
 4. Your assessment: "Ready for production" or "Requires fixes"
 
 ```bash
-cat > test_report.md << 'EOF'
-# Binance P2P API Test Report
+cat > worker_test_report.md << 'EOF'
+# P2P Data Ingestion Worker Test Report
 Date: $(date)
 Tester: LLM Agent
 
@@ -298,10 +150,9 @@ EOF
 
 ## Your Instructions
 
-1. Execute each phase sequentially
-2. Document every command output
-3. If a phase fails, run diagnostics before proceeding
-4. Provide the final test report with clear pass/fail status
-5. If endpoints work, test at least 4 different fiat pairs (ARS, COP, VES, USD)
+1. Execute each phase sequentially.
+2. Document every command output.
+3. If a phase fails, analyze the logs and code to diagnose the issue before proceeding.
+4. Provide the final test report with a clear pass/fail status.
 
 **Begin testing now.**
