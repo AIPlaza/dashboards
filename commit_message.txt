@@ -1,5 +1,0 @@
-fix: Use Optional for union types in crud.py
-
-Corrected TypeError in GitHub Actions by replacing `Type | None` with
-`Optional[Type]` in `p2p_api/crud.py` for compatibility with Python versions
-older than 3.10.
